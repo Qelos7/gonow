@@ -229,16 +229,28 @@
       return coordOf(data?.trip?.currentLocation);
     }
 
+    // Fällt eine Teilstrecke dieser Verbindung aus (ganz oder auf einem Abschnitt)?
+    function isJourneyCancelled(journey) {
+      return journey.legs.some(
+        (l) =>
+          l.cancelled ||
+          (l.remarks ?? []).some((r) => r.type === "status" && /cancelled/i.test(r.code ?? ""))
+      );
+    }
+
     // Gibt die Verbindung zurück, oder null wenn es keine gibt.
     // Wirft einen Fehler, wenn die BVG nicht erreichbar ist.
     async function fetchJourney(from, to) {
-      const url = `${BVG_API}/journeys?${placeParams("from", from)}&${placeParams("to", to)}&results=1&stopovers=true&remarks=true&language=de&polylines=true`;
+      const url = `${BVG_API}/journeys?${placeParams("from", from)}&${placeParams("to", to)}&results=4&stopovers=true&remarks=true&language=de&polylines=true`;
       const res = await fetch(url);
       if (res.status === 404) return null;
       if (!res.ok) throw new Error("BVG-Verbindungssuche fehlgeschlagen");
       const data = await res.json();
-      const journey = data?.journeys?.[0];
-      if (!journey || !journey.legs?.length) return null;
+      // Mehrere Verbindungen holen und die erste nehmen, die wirklich fährt.
+      // Fallen alle (teilweise) aus, nehmen wir trotzdem die erste – dann warnt der rote Hinweis.
+      const candidates = (data?.journeys ?? []).filter((j) => j.legs?.length);
+      const journey = candidates.find((j) => !isJourneyCancelled(j)) ?? candidates[0];
+      if (!journey) return null;
 
       const legs = journey.legs
         .filter((l) => l.line || l.walking)
@@ -824,10 +836,10 @@
               Ich habe ein Deutschlandticket
             </label>
             {modes.includes("car") && (
-              <label className="inline-flex items-center gap-2 text-sm text-gray-300">
-                Parken am Ziel:
+              <label className="flex items-center gap-2 text-sm text-gray-300">
+                <span className="whitespace-nowrap">Parken am Ziel:</span>
                 <select value={parkHours} onChange={(e) => setParkHours(Number(e.target.value))} disabled={loading}
-                  className="bg-black border border-white/20 rounded-lg px-2 py-1.5 text-white text-base sm:text-sm focus:ring-2 focus:ring-[#2563EB] focus:outline-none">
+                  className="flex-1 sm:flex-none min-w-0 bg-black border border-white/20 rounded-lg px-2 py-1.5 text-white text-base sm:text-sm focus:ring-2 focus:ring-[#2563EB] focus:outline-none">
                   <option value={0}>eigener Parkplatz</option>
                   <option value={1}>1 Stunde</option>
                   <option value={2}>2 Stunden</option>
@@ -1002,7 +1014,25 @@
 
     function LiveTripSection({ journey, onRefresh, refreshing, refreshError, visible = true }) {
       const containerRef = useRef(null);
-      const boundsRef = useRef([]);
+      const boundsRef = useRef([]);       // Punkte der Strecke
+      const positionsRef = useRef({});    // letzte bekannte Zugpositionen
+      const autoFitDoneRef = useRef(false); // Bahn schon einmal in den Ausschnitt geholt?
+
+      // Kartenausschnitt so wählen, dass Strecke UND Bahn(en) zu sehen sind.
+      function fitView() {
+        const map = mapRef.current;
+        if (!map) return;
+        const vehicles = Object.entries(positionsRef.current)
+          .filter(([i]) => {
+            const leg = journey.legs[i];
+            return leg && !(leg.arrival && new Date(leg.arrival).getTime() < Date.now());
+          })
+          .map(([, pos]) => pos);
+        const points = [...boundsRef.current, ...vehicles];
+        if (!points.length) return;
+        map.invalidateSize();
+        map.fitBounds(points, { padding: [36, 36], maxZoom: 16 });
+      }
       const mapRef = useRef(null);
       const routeLayerRef = useRef(null);
       const vehicleLayerRef = useRef(null);
@@ -1063,10 +1093,11 @@
             .bindTooltip("Start").addTo(layer);
           L.circleMarker(end, { radius: 8, color: "#000", weight: 3, fillColor: "#ffffff", fillOpacity: 1 })
             .bindTooltip("Ziel").addTo(layer);
-          map.invalidateSize();
-          map.fitBounds(allPoints, { padding: [30, 30], maxZoom: 16 });
         }
         boundsRef.current = allPoints;
+        autoFitDoneRef.current = false; // neue Verbindung → Ausschnitt neu wählen, sobald Bahn bekannt
+        positionsRef.current = {};
+        fitView();
 
         // Erste Zugpositionen kommen direkt mit der Verbindung.
         const initial = {};
@@ -1079,10 +1110,7 @@
       useEffect(() => {
         const map = mapRef.current;
         if (!visible || !map) return;
-        const t = setTimeout(() => {
-          map.invalidateSize();
-          if (boundsRef.current.length) map.fitBounds(boundsRef.current, { padding: [30, 30], maxZoom: 16 });
-        }, 50);
+        const t = setTimeout(fitView, 50);
         return () => clearTimeout(t);
       }, [visible, journey]);
 
@@ -1135,6 +1163,13 @@
             .bindTooltip(`${leg.lineName} – gerade hier`)
             .addTo(layer);
         });
+
+        // Sobald die Bahn zum ersten Mal bekannt ist: einmal den Ausschnitt anpassen.
+        positionsRef.current = positions;
+        if (!autoFitDoneRef.current && Object.keys(positions).length > 0) {
+          autoFitDoneRef.current = true;
+          fitView();
+        }
       }, [positions, journey]);
 
       // ---- Texte über der Karte ----
@@ -1220,7 +1255,10 @@
             const notices = [];
             journey.legs.forEach((leg) => {
               if (leg.cancelled) notices.push(`${leg.lineName}: Diese Fahrt fällt aus!`);
-              leg.notices.forEach((n) => notices.push(leg.walking ? n : `${leg.lineName}: ${n}`));
+              // Linie nur voranstellen, wenn die BVG sie nicht schon selbst nennt ("S1: Fahrt fällt aus …").
+              leg.notices.forEach((n) =>
+                notices.push(leg.walking || n.startsWith(`${leg.lineName}:`) ? n : `${leg.lineName}: ${n}`)
+              );
             });
             const unique = [...new Set(notices)];
             if (unique.length === 0) return null;
