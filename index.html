@@ -912,7 +912,12 @@
                     <span className="text-sm font-medium text-white">
                       {REPORT_TYPE_LABEL[r.type]} · {r.location}
                     </span>
-                    <span className="text-xs text-gray-400 whitespace-nowrap">{timeAgo(r.createdAt, now)}</span>
+                    <span className="text-xs text-gray-400 whitespace-nowrap text-right">
+                      {timeAgo(r.createdAt, now)}
+                      <span className="block text-gray-600">
+                        noch {Math.max(1, Math.ceil((REPORT_LIFETIME_MS - (now - new Date(r.createdAt).getTime())) / 60000))} min
+                      </span>
+                    </span>
                   </div>
                   {r.note && <p className="text-sm text-gray-300 mt-0.5">{r.note}</p>}
                   <p className="text-xs text-gray-500 mt-0.5">gemeldet von {r.userName}</p>
@@ -1539,8 +1544,33 @@
       );
     }
 
+    // Meldungen bleiben 10 Minuten sichtbar – auch nach dem Neuladen (im Browser dieses Geräts gespeichert).
+    const REPORT_LIFETIME_MS = 10 * 60 * 1000;
+    const REPORTS_KEY = "gonow.reports";
+
+    function freshReports(list) {
+      const now = Date.now();
+      return (Array.isArray(list) ? list : []).filter(
+        (r) => r && r.createdAt && now - new Date(r.createdAt).getTime() < REPORT_LIFETIME_MS
+      );
+    }
+
     function ComparePage() {
-      const [reports, setReports] = useState([]);
+      const [reports, setReports] = useState(() => freshReports(loadSetting(REPORTS_KEY, [])));
+
+      // Speichern, sobald sich die Liste ändert.
+      useEffect(() => saveSetting(REPORTS_KEY, reports), [reports]);
+
+      // Alle 15 Sekunden abgelaufene Meldungen entfernen.
+      useEffect(() => {
+        const t = setInterval(() => {
+          setReports((prev) => {
+            const kept = freshReports(prev);
+            return kept.length === prev.length ? prev : kept;
+          });
+        }, 15000);
+        return () => clearInterval(t);
+      }, []);
       const [trip, setTrip] = useState(null); // { journey, from, to } der letzten ÖPNV-Verbindung
       const [refreshing, setRefreshing] = useState(false);
       const [refreshError, setRefreshError] = useState(false);
@@ -1651,7 +1681,7 @@
                 <ReportList reports={reports} />
               </div>
               <p className="mt-3 text-xs text-gray-400 text-center">
-                Meldungen sind nur in dieser Sitzung sichtbar und gehen beim Neuladen verloren.
+                Meldungen bleiben 10 Minuten sichtbar, auch nach dem Neuladen – nur auf diesem Gerät.
               </p>
             </div>
           </div>
