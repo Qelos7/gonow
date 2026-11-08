@@ -25,7 +25,7 @@ Wer in Berlin pendelt, fragt sich oft: *Lohnt sich heute das Auto, oder bin ich 
 - **Deutschlandticket-Schalter** inkl. Hinweis, ab wie vielen Fahrten im Monat es sich lohnt
 - **„Wenn du jetzt losgehst“**: Countdown, Linie, Gleis, Verspätung und eine Karte mit der **Live-Position der Bahn** (alle 15 Sekunden aktualisiert)
 - **Live-Störungen** bei S-Bahn, U-Bahn und Regionalzügen (Ausfälle, Teilausfälle, Verspätungen) sowie Warnhinweise zur eigenen Verbindung
-- **Meldungen von Nutzern** (Stau, Störung): für alle Geräte sichtbar, verschwinden nach 10 Minuten automatisch
+- **Anonyme Meldungen von Nutzern** (Stau, Störung): nur über feste Auswahllisten (Linie/Straße, Art), für alle Geräte sichtbar, verschwinden nach 10 Minuten automatisch
 - **Handy-Ansicht wie eine App** mit Tab-Leiste; lässt sich auf den Home-Bildschirm legen
 
 ## So rechnet GoNow
@@ -52,12 +52,12 @@ Ob ein Ziel im S-Bahn-Ring liegt, prüft GoNow geometrisch anhand der Ringbahn-B
 | Fahrpreise | [VBB-Tarif ab 1. Januar 2026](https://www.vbb.de/news/neue-fahrpreise-im-vbb-ab-1-januar-2026/) |
 | Nutzer-Meldungen (gemeinsam für alle Geräte) | [ntfy.sh](https://ntfy.sh/) – kostenloser Nachrichtendienst, kein Konto nötig |
 
-Gespeichert werden nur die Meldungen, die Nutzer selbst abschicken (Spitzname, Ort, Art, optionale Details). Die App zeigt sie 10 Minuten lang an. Standort und Suchanfragen werden nirgends gespeichert. Einstellungen (Deutschlandticket, Parkdauer) merkt sich nur der eigene Browser.
+**Datenschutz:** keine Cookies, kein Tracking, kein Nutzerkonto. Alle Programmteile liegen im eigenen Ordner `vendor/`, es werden keine fremden Programm-Server (CDNs) angefragt. Meldungen sind anonym und bestehen nur aus Werten fester Auswahllisten; die App zeigt sie 10 Minuten lang an. Vor der ersten Standortabfrage erklärt die App, wohin der Standort gesendet wird. Einstellungen merkt sich nur der eigene Browser. Details und Kontakt in der [Datenschutzerklärung](datenschutz.html). GoNow ist ein privates, nicht kommerzielles Projekt.
 
 ## Technik
 
 - **React 18** (Oberfläche), **Tailwind CSS** (Design), **Leaflet** (Karte)
-- Bewusst als **eine einzige HTML-Datei** ohne Build-Schritt gebaut: läuft sofort im Browser, braucht keine Installation und lässt sich kostenlos über **GitHub Pages** veröffentlichen
+- Bewusst als **eine HTML-Datei plus Programmteile im Ordner `vendor/`** ohne Build-Schritt gebaut: läuft sofort im Browser, braucht keine Installation, lädt nichts von fremden Programm-Servern und lässt sich kostenlos über **GitHub Pages** veröffentlichen
 - Live-Daten werden direkt im Browser abgefragt; mehrere Anfragen laufen parallel, veraltete Suchanfragen werden abgebrochen
 
 ## Entstehung & meine Rolle
@@ -85,7 +85,7 @@ Wichtige Schritte vom Prototyp zur heutigen App:
 - Auto-Zeiten und -Kosten sind **Schätzungen** (Verkehrsaufschlag, Spritpreis, Parkgebühr sind Annahmen); Versicherung und Wertverlust sind nicht eingerechnet.
 - Die genutzten Dienste sind **kostenlose Gemeinschaftsangebote ohne Garantie** und nur für geringe Nutzung gedacht.
 - Die Störungsliste fragt **9 große Knotenbahnhöfe** ab, weil die Schnittstelle keine Gesamtliste anbietet; Störungen am Stadtrand und bei Bus/Tram können fehlen.
-- Nutzer-Meldungen laufen über einen **öffentlichen Kanal** ohne Anmeldung und ohne Moderation. Wer den Kanalnamen aus dem Code kennt, könnte dort auch selbst Nachrichten einstellen.
+- Nutzer-Meldungen laufen über einen **öffentlichen Kanal** ohne Anmeldung. Die App zeigt aber nur Meldungen an, deren Werte exakt aus den festen Auswahllisten stammen – Freitext, Namen oder eingeschleuster Code werden verworfen. Falsche Meldungen (z. B. erfundene Störungen) lassen sich so nicht völlig verhindern.
 
 ## Ideen für später
 

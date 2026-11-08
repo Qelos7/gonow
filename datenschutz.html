@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <title>Datenschutz – GoNow</title>
+  <style>
+    :root { --bg:#000; --card:#0d0d0d; --fg:#e5e7eb; --muted:#9ca3af; --line:rgba(255,255,255,.12); --accent:#60a5fa; --todo:#facc15; color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+    main { max-width: 46rem; margin: 0 auto; padding-block: 32px 64px;
+           padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+    h1 { font-size: 1.75rem; margin: .5rem 0 .25rem; color:#fff; text-wrap: balance; }
+    h2 { font-size: 1.1rem; margin: 2rem 0 .5rem; color:#fff; }
+    p, li { color: var(--fg); }
+    .muted { color: var(--muted); font-size: .9rem; }
+    a { color: var(--accent); }
+    ul { padding-left: 1.2rem; }
+    table { width:100%; border-collapse: collapse; font-size:.9rem; }
+    .table-wrap { overflow-x:auto; border:1px solid var(--line); border-radius:10px; }
+    th, td { text-align:left; vertical-align:top; padding:.55rem .7rem; border-bottom:1px solid var(--line); }
+    th { color:#fff; background: var(--card); }
+    tr:last-child td { border-bottom: 0; }
+    mark.todo { background: var(--todo); color:#000; padding: 0 .25rem; border-radius: 3px; }
+    .back { display:inline-block; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+<main>
+  <a class="back" href="./">← Zurück zu GoNow</a>
+  <h1>Datenschutzerklärung</h1>
+  <p class="muted">Stand: 8. November 2026</p>
+
+  <h2>1. Verantwortlich und Kontakt</h2>
+  <p>
+    Yig. Del.<br />
+    E-Mail: <a href="mailto:yh.delen@gmail.com">yh.delen@gmail.com</a>
+  </p>
+  <p>
+    GoNow ist ein <strong>privates, nicht kommerzielles Projekt</strong> – ohne Werbung, ohne Bezahlfunktion und
+    ohne geschäftlichen Zweck. Es ist <strong>keine offizielle App der BVG</strong> und steht in keiner Verbindung
+    zu den Berliner Verkehrsbetrieben (BVG) AöR oder dem Verkehrsverbund Berlin-Brandenburg (VBB).
+  </p>
+  <p>
+    Alle Angaben – Verbindungen, Fahrzeiten, Preise, Störungen und Zugpositionen – stammen aus öffentlich
+    zugänglichen Quellen oder sind Schätzungen und erfolgen <strong>ohne Gewähr</strong>. Beim Taxi gilt immer der
+    Preis auf dem Taxameter.
+  </p>
+  <p>
+    <strong>Problem mit einer Meldung oder einem Inhalt?</strong> Schreib bitte an
+    <a href="mailto:yh.delen@gmail.com">yh.delen@gmail.com</a>.
+  </p>
+
+  <h2>2. Das Wichtigste in Kürze</h2>
+  <ul>
+    <li>GoNow hat <strong>kein Nutzerkonto</strong>, setzt <strong>keine Cookies</strong> und nutzt <strong>kein Tracking</strong> und keine Werbung.</li>
+    <li>GoNow hat keinen eigenen Server, der Daten speichert. Für die Funktionen fragt dein Browser aber direkt
+        Dienste anderer Anbieter an (siehe Abschnitt 4). Dabei sehen diese Anbieter technisch bedingt deine
+        <strong>IP-Adresse</strong> und die jeweilige Anfrage (z.&nbsp;B. Start und Ziel).</li>
+    <li>Alle Programmbestandteile (React, Leaflet, Tailwind, Babel) liegen auf demselben Server wie die App.
+        Es werden <strong>keine Inhalte von fremden Programm-Servern (CDNs) nachgeladen</strong>.</li>
+  </ul>
+
+  <h2>3. Hosting (GitHub Pages)</h2>
+  <p>
+    Die App wird über <strong>GitHub Pages</strong> bereitgestellt (GitHub, Inc., 88 Colin P. Kelly Jr. Street,
+    San Francisco, CA 94107, USA). Beim Aufruf verarbeitet GitHub technisch notwendige Daten, insbesondere deine
+    IP-Adresse, Datum und Uhrzeit des Abrufs, die aufgerufene Seite und Angaben zu Browser und Betriebssystem
+    (Server-Logdateien). Das dient der sicheren und stabilen Auslieferung der Seite.
+  </p>
+  <p>
+    Rechtsgrundlage ist Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;f DSGVO (berechtigtes Interesse an einer zuverlässigen
+    Bereitstellung). Dabei können Daten in die USA übermittelt werden. GitHub ist nach dem
+    EU-US Data Privacy Framework zertifiziert, für das ein Angemessenheitsbeschluss der EU-Kommission besteht.
+    <!-- Vor Veröffentlichung prüfen: aktuelle Zertifizierung unter https://www.dataprivacyframework.gov/ -->
+    Weitere Informationen:
+    <a href="https://docs.github.com/de/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener noreferrer">Datenschutzerklärung von GitHub</a>.
+  </p>
+
+  <h2>4. Dienste, die dein Browser für die Funktionen anfragt</h2>
+  <p>Die folgenden Anfragen schickt dein Browser direkt an die genannten Anbieter. GoNow selbst speichert davon nichts.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Funktion</th><th>Anbieter</th><th>Übermittelte Daten</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Ortssuche, ÖPNV-Verbindungen, Zugpositionen, Störungen</td>
+          <td><a href="https://v6.bvg.transport.rest/" target="_blank" rel="noopener noreferrer">v6.bvg.transport.rest</a> – inoffizielle, frei zugängliche Schnittstelle zu den Fahrplandaten der BVG (kein Angebot der BVG). Betreiberangaben siehe dortiges Impressum.</td>
+          <td>IP-Adresse, Suchbegriffe, Start und Ziel (Haltestelle, Adresse oder Koordinaten)</td>
+        </tr>
+        <tr>
+          <td>Routen für Auto, Taxi, Fahrrad, Fußweg</td>
+          <td><a href="https://routing.openstreetmap.de/" target="_blank" rel="noopener noreferrer">routing.openstreetmap.de</a>, FOSSGIS e.&nbsp;V., Deutschland</td>
+          <td>IP-Adresse, Koordinaten von Start und Ziel</td>
+        </tr>
+        <tr>
+          <td>Kartenbilder</td>
+          <td><a href="https://www.openstreetmap.org/" target="_blank" rel="noopener noreferrer">OpenStreetMap Foundation</a>, Vereinigtes Königreich</td>
+          <td>IP-Adresse, angezeigter Kartenausschnitt</td>
+        </tr>
+        <tr>
+          <td>Meldungen von Nutzern (Stau/Störung)</td>
+          <td><a href="https://ntfy.sh/" target="_blank" rel="noopener noreferrer">ntfy.sh</a> – frei zugänglicher Nachrichtendienst. Betreiber, Serverstandort und Datenschutzhinweise siehe Angaben auf <a href="https://ntfy.sh/" target="_blank" rel="noopener noreferrer">ntfy.sh</a>; eine Verarbeitung außerhalb der EU ist möglich.</td>
+          <td>IP-Adresse; beim Melden: Art, Linie bzw. Straße und optional eine Angabe aus einer festen Liste</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Rechtsgrundlage ist Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;b DSGVO (Bereitstellung der von dir angeforderten Funktion)
+    bzw. Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;f DSGVO (berechtigtes Interesse an einer funktionierenden App).
+    Für das Vereinigte Königreich besteht ein Angemessenheitsbeschluss der EU-Kommission.
+    Soweit ntfy.sh Daten außerhalb der EU verarbeitet, erfolgt dies nur, wenn du die Meldefunktion nutzt oder die
+    Meldungsliste geöffnet ist; die übermittelten Meldungen enthalten keine Namen und keinen Freitext.
+    <!-- Vor Veröffentlichung prüfen: Gültigkeit des UK-Angemessenheitsbeschlusses -->
+
+  </p>
+
+  <h2>5. Dein Standort („Mein Standort“)</h2>
+  <p>
+    Nur wenn du auf „Mein Standort“ tippst und dem Hinweis in der App sowie der Abfrage deines Browsers zustimmst,
+    wird dein Standort ermittelt. Die Koordinaten werden ausschließlich an die BVG-Schnittstelle und den
+    Routenplaner (Abschnitt 4) gesendet, um Verbindung und Route zu berechnen. GoNow speichert deinen Standort nicht.
+  </p>
+  <p>
+    Rechtsgrundlage ist deine Einwilligung (Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;a DSGVO). Du kannst sie jederzeit
+    widerrufen, indem du die Standortfreigabe in den Einstellungen deines Browsers entziehst.
+  </p>
+
+  <h2>6. Meldungen von Nutzern</h2>
+  <p>
+    Meldungen werden <strong>anonym</strong> und nur über feste Auswahllisten erstellt (Art, Linie bzw. Straße,
+    optional eine Angabe wie „Unfall“). Es gibt keine Namens- und keine Freitextfelder. Meldungen sind für alle
+    Nutzer von GoNow sichtbar. Die App zeigt sie 10 Minuten lang an; beim Dienst ntfy.sh werden sie laut Anbieter
+    bis zu 12 Stunden zwischengespeichert. Dabei verarbeitet ntfy.sh auch deine IP-Adresse.
+  </p>
+  <p>Rechtsgrundlage ist Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;b DSGVO (du nutzt die Meldefunktion bewusst).</p>
+
+  <h2>7. Links zu Apple Karten und Google Maps</h2>
+  <p>
+    Die Knöpfe „Apple Karten“ und „Google Maps“ öffnen die Route beim jeweiligen Anbieter. Erst wenn du darauf tippst,
+    werden Start- und Zielkoordinaten an Apple Inc. bzw. Google übermittelt. Dort gelten die Datenschutzbestimmungen
+    von <a href="https://www.apple.com/de/legal/privacy/" target="_blank" rel="noopener noreferrer">Apple</a> bzw.
+    <a href="https://policies.google.com/privacy?hl=de" target="_blank" rel="noopener noreferrer">Google</a>.
+  </p>
+
+  <h2>8. Speicherung auf deinem Gerät</h2>
+  <p>
+    GoNow speichert einige Angaben nur im Speicher deines Browsers (localStorage), damit die App sie beim nächsten
+    Öffnen kennt: ob du ein Deutschlandticket hast, die gewählte Parkdauer, ob du den Standort-Hinweis bestätigt hast,
+    sowie die Meldungen der letzten 10 Minuten. Diese Daten verlassen dein Gerät nicht.
+  </p>
+  <p>
+    Rechtsgrundlage ist § 25 Abs.&nbsp;2 Nr.&nbsp;2 TDDDG (unbedingt erforderlich für die von dir genutzte Funktion).
+    Du kannst die Daten jederzeit löschen, indem du die Website-Daten in deinem Browser entfernst.
+  </p>
+
+  <h2>9. Deine Rechte</h2>
+  <p>Du hast das Recht auf</p>
+  <ul>
+    <li>Auskunft über die zu dir verarbeiteten Daten (Art.&nbsp;15 DSGVO),</li>
+    <li>Berichtigung (Art.&nbsp;16), Löschung (Art.&nbsp;17) und Einschränkung der Verarbeitung (Art.&nbsp;18),</li>
+    <li>Datenübertragbarkeit (Art.&nbsp;20),</li>
+    <li>Widerspruch gegen Verarbeitungen auf Grundlage von Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;f DSGVO (Art.&nbsp;21),</li>
+    <li>Widerruf einer Einwilligung mit Wirkung für die Zukunft (Art.&nbsp;7 Abs.&nbsp;3).</li>
+  </ul>
+  <p>
+    Da GoNow selbst keine Daten auf einem Server speichert, kann ich dir zu Anfragen an die in Abschnitt 3 und 4
+    genannten Anbieter keine Daten herausgeben; wende dich dafür bitte direkt an den jeweiligen Anbieter.
+  </p>
+  <p>
+    Du kannst dich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren, zum Beispiel bei der
+    <a href="https://www.datenschutz-berlin.de/" target="_blank" rel="noopener noreferrer">Berliner Beauftragten für Datenschutz und Informationsfreiheit</a>.
+  </p>
+
+  <h2>10. Datenquellen und Lizenzen</h2>
+  <p class="muted">
+    Kartendaten und Hotelliste © OpenStreetMap-Mitwirkende, verfügbar unter der
+    <a href="https://opendatacommons.org/licenses/odbl/" target="_blank" rel="noopener noreferrer">Open Database License (ODbL)</a>.
+    Routen: FOSSGIS e.&nbsp;V. (OSRM). Fahrplandaten der BVG über transport.rest. Verwendete Software: React (MIT),
+    Leaflet (BSD-2-Clause), Tailwind CSS (MIT), Babel (MIT). Für Inhalte verlinkter Websites ist der jeweilige
+    Anbieter verantwortlich.
+  </p>
+</main>
+</body>
+</html>
