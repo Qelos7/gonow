@@ -62,13 +62,11 @@ Ob ein Ziel im S-Bahn-Ring liegt, prüft GoNow geometrisch anhand der Ringbahn-B
 
 ## Entstehung & meine Rolle
 
-GoNow begann als Prototyp, den ich bei einem **AWS-Workshop mit dem KI-Werkzeug Kiro** gebaut habe. 
-Der Hauptgedanke war dabei, ein Produkt, welches wir im Alltag benötigen könnten, von Scratch zu erstellen und ein Prototyp vorzustellen.
-Der Prototyp funktionierte nicht zuverlässig aufgrund der kurzfristigen Zeit.
-An einem Sonntag habe ich mich hingesetzt und wollte wissen, wie ich ohne Programmierkenntnisse und kaum Prompting-Tricks ein "Endprodukt" veröffentlichen kann. 
-Mithilfe von Claude, der das coding übernommen hat, und meinen kreativen Vorstellungen, wollte ich schauen, wie weit ich kommen kann. 
+GoNow begann als Prototyp, den ich bei einem **AWS-Workshop mit dem KI-Werkzeug Kiro** gebaut habe. Die Aufgabe: in kurzer Zeit von Grund auf ein Produkt entwickeln, das man im Alltag wirklich braucht, und es als Prototyp vorstellen. Wegen der knappen Zeit lief der Prototyp aber nicht zuverlässig.
 
-Meine Aufgaben dabei: die Produktidee, das Festlegen der Prioritäten, die Entscheidung über Funktionen und Aussehen, das Testen und die Veröffentlichung. Die Umsetzung im Code entstand im Dialog mit der KI.
+An einem Sonntag habe ich mich deshalb hingesetzt und mir eine Frage gestellt: Wie weit komme ich **ohne Programmierkenntnisse** und ohne besondere Prompting-Tricks, bis zu einem Produkt, das wirklich online ist? Das Programmieren hat **Claude** (KI-Assistent von Anthropic) übernommen. Von mir kamen die Ideen, die Entscheidungen, was die App können soll, das Testen und die Veröffentlichung.
+
+Das Ergebnis: Aus dem fehlerhaften Prototyp wurde an einem Tag eine funktionierende Web-App mit Live-Daten der BVG, echten Routen, korrekten Tarifen, einer Taxifunktion für meinen Vater, einer Handy-Ansicht und einer Datenschutzerklärung.
 
 Wichtige Schritte vom Prototyp zur heutigen App:
 
