@@ -1,0 +1,1629 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <!-- Handy: schwarze Statusleiste und "Zum Home-Bildschirm" als eigene App -->
+  <meta name="theme-color" content="#000000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-title" content="GoNow" />
+  <title>GoNow – ÖPNV vs. Auto in Berlin</title>
+  <!-- Design (Tailwind), Oberfläche (React) und JSX-Übersetzer (Babel) kommen direkt aus dem Netz – keine Installation nötig. -->
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+  <!-- Karte (Leaflet) mit Kartendaten von OpenStreetMap -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body { background: #000; color: #fff; }
+    .leaflet-container { background: #e5e3df; font: inherit; }
+    .leaflet-control-attribution { background: rgba(0,0,0,.6) !important; color: #9CA3AF; }
+    .leaflet-control-attribution a { color: #60a5fa; }
+    /* Markierung für den fahrenden Zug/Bus */
+    .vehicle-marker {
+      display: flex; align-items: center; justify-content: center;
+      width: 44px; height: 24px; border-radius: 12px;
+      background: var(--c); color: #fff; font-weight: 700; font-size: 12px;
+      border: 2px solid #fff; box-shadow: 0 0 0 0 rgba(124,252,138,.7);
+      animation: vehicle-pulse 1.8s infinite;
+    }
+    @keyframes vehicle-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(124,252,138,.7); }
+      70%  { box-shadow: 0 0 0 12px rgba(124,252,138,0); }
+      100% { box-shadow: 0 0 0 0 rgba(124,252,138,0); }
+    }
+  </style>
+</head>
+<body class="bg-black">
+  <div id="root"></div>
+
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useRef } = React;
+
+    const BVG_API = "https://v6.bvg.transport.rest";
+    const ERROR_TEXT = "Verbindung konnte nicht geladen werden. Versuch's gleich noch mal.";
+
+    /* =====================================================================
+       Hilfsfunktionen
+       ===================================================================== */
+
+    // Luftlinien-Entfernung in km zwischen zwei Punkten.
+    function straightLineKm(from, to) {
+      const R = 6371;
+      const rad = (d) => (d * Math.PI) / 180;
+      const dLat = rad(to.latitude - from.latitude);
+      const dLon = rad(to.longitude - from.longitude);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(rad(from.latitude)) * Math.cos(rad(to.latitude)) * Math.sin(dLon / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function formatTime(iso) {
+      if (!iso) return "–";
+      return new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function formatEuro(value) {
+      return value.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
+    }
+
+    function timeAgo(iso, now) {
+      const minutes = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60000));
+      if (minutes < 1) return "jetzt";
+      if (minutes < 60) return `vor ${minutes} min`;
+      return `vor ${Math.round(minutes / 60)} h`;
+    }
+
+    /* =====================================================================
+       BVG: Orte suchen
+       ===================================================================== */
+
+    async function searchLocations(query, signal) {
+      const q = query.trim();
+      if (q.length < 2) return [];
+      const url = `${BVG_API}/locations?query=${encodeURIComponent(q)}&results=6&poi=false&addresses=true&stops=true`;
+      const res = await fetch(url, { signal });
+      if (!res.ok) throw new Error("BVG-Suche fehlgeschlagen");
+      const data = await res.json();
+      return data
+        .map((d) => {
+          // Haltestellen haben ihre Koordinaten unter "location", Adressen direkt am Objekt.
+          const latitude = d.latitude ?? d.location?.latitude;
+          const longitude = d.longitude ?? d.location?.longitude;
+          if (latitude == null || longitude == null) return null;
+          return {
+            id: d.id ?? `${latitude},${longitude}`,
+            name: d.name ?? d.address,
+            latitude,
+            longitude,
+            type: d.type === "stop" || d.type === "station" ? "stop" : "address",
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 6);
+    }
+
+    /* =====================================================================
+       BVG: Verbindung holen
+       ===================================================================== */
+
+    /* ---------------------------------------------------------------------
+       Tarife (VBB/BVG, gültig seit 1. Januar 2026, Erwachsene)
+       Bei einer Preiserhöhung nur hier die Zahlen ändern.
+       --------------------------------------------------------------------- */
+    const FARES = {
+      kurzstrecke: 2.8,          // 3 Stationen S-/U-Bahn (Umsteigen erlaubt) oder 6 Haltestellen Bus/Tram (ohne Umsteigen)
+      AB: 4.0,                   // ganz Berlin, 2 Stunden in eine Richtung
+      ABC: 5.0,                  // inkl. Umland, z. B. Potsdam oder Flughafen BER
+      deutschlandticketMonth: 63,
+    };
+
+    // Grobe Umrisse von Berlin (Tarifbereich A+B); alles außerhalb ist Bereich C.
+    const BERLIN_BBOX = { minLat: 52.338, maxLat: 52.676, minLon: 13.088, maxLon: 13.761 };
+
+    // S-Bahn-Ring (Tarifbereich A) – Bahnhöfe der Ringbahn im Uhrzeigersinn.
+    const S_BAHN_RING = [
+      [52.5487, 13.3884], [52.5492, 13.4155], [52.5447, 13.4271], [52.5402, 13.4387],
+      [52.5291, 13.4555], [52.5240, 13.4648], [52.5136, 13.4752], [52.5030, 13.4692],
+      [52.4935, 13.4613], [52.4728, 13.4555], [52.4693, 13.4426], [52.4673, 13.4316],
+      [52.4701, 13.3857], [52.4752, 13.3655], [52.4795, 13.3519], [52.4782, 13.3428],
+      [52.4777, 13.3287], [52.4797, 13.3125], [52.4888, 13.3006], [52.4964, 13.2906],
+      [52.5013, 13.2834], [52.5076, 13.2834], [52.5185, 13.2848], [52.5306, 13.2996],
+      [52.5344, 13.3290], [52.5361, 13.3435], [52.5428, 13.3660],
+    ];
+
+    // Liegt ein Punkt innerhalb eines Vielecks? (Strahl-Methode)
+    function pointInPolygon([lat, lon], polygon) {
+      let inside = false;
+      for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const [yi, xi] = polygon[i];
+        const [yj, xj] = polygon[j];
+        if ((yi > lat) !== (yj > lat) && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+      }
+      return inside;
+    }
+
+    function isInsideRing(place) {
+      return pointInPolygon([place.latitude, place.longitude], S_BAHN_RING);
+    }
+
+    // Ist ein Ort in Berlin? Erst am Namen erkennen ("... (Berlin)", "..., Berlin-Mitte"), sonst an den Koordinaten.
+    function isInBerlin(name = "", coord) {
+      const clean = name.replace(/\s*\[[^\]]*\]\s*$/, "");
+      const suffix = clean.match(/\(([^)]+)\)\s*$/);
+      if (suffix) return suffix[1] === "Berlin";
+      if (/,\s*Berlin\b/.test(clean) || /^(S\+U |S |U )?Berlin\b/.test(clean)) return true;
+      if (!coord) return true;
+      const [lat, lon] = coord;
+      return lat >= BERLIN_BBOX.minLat && lat <= BERLIN_BBOX.maxLat && lon >= BERLIN_BBOX.minLon && lon <= BERLIN_BBOX.maxLon;
+    }
+
+    // Welchen Fahrschein braucht man für diese Verbindung?
+    function computeFare(legs) {
+      const transit = legs.filter((l) => !l.walking);
+      if (transit.length === 0) return null;
+
+      const stops = transit.flatMap((l) => [
+        { name: l.originName, coord: l.path[0] },
+        { name: l.destinationName, coord: l.path[l.path.length - 1] },
+      ]);
+      if (stops.some((s) => !isInBerlin(s.name, s.coord))) {
+        return { priceEuro: FARES.ABC, label: "Einzelfahrschein ABC" };
+      }
+
+      const onlyRail = transit.every((l) => l.mode === "subway" || l.mode === "suburban");
+      const totalStations = transit.reduce((sum, l) => sum + (l.stopCount ?? 99), 0);
+      const singleBusTram =
+        transit.length === 1 && (transit[0].mode === "bus" || transit[0].mode === "tram") && (transit[0].stopCount ?? 99) <= 6;
+      if ((onlyRail && totalStations <= 3) || singleBusTram) {
+        return { priceEuro: FARES.kurzstrecke, label: "Kurzstrecke" };
+      }
+      return { priceEuro: FARES.AB, label: "Einzelfahrschein AB" };
+    }
+
+    // Hinweistexte der BVG können HTML enthalten – für die Anzeige entfernen.
+    function cleanRemark(text) {
+      return String(text ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    }
+
+    function placeParams(prefix, place) {
+      // Haltestellen über ihre Nummer – das ist genauer als über Koordinaten.
+      if (place.type === "stop") return `${prefix}=${encodeURIComponent(place.id)}`;
+      return [
+        `${prefix}.latitude=${place.latitude}`,
+        `${prefix}.longitude=${place.longitude}`,
+        `${prefix}.address=${encodeURIComponent(place.addressName ?? place.name)}`,
+      ].join("&");
+    }
+
+    // Koordinaten [Breite, Länge] aus einem BVG-Ort holen (Haltestellen haben sie unter "location").
+    function coordOf(place) {
+      const loc = place?.location ?? place;
+      return loc?.latitude != null && loc?.longitude != null ? [loc.latitude, loc.longitude] : null;
+    }
+
+    // Offizielle Farben der Berliner U-Bahn-Linien, sonst eine Farbe je Verkehrsmittel.
+    const U_BAHN_COLORS = {
+      U1: "#7DAD4C", U2: "#DA421E", U3: "#16683D", U4: "#F0D722", U5: "#7E5330",
+      U6: "#8C6DAB", U7: "#528DBA", U8: "#3A6FB5", U9: "#F3791D",
+    };
+    const MODE_COLORS = {
+      subway: "#2563EB", suburban: "#008D4F", tram: "#D82020", bus: "#A5027D",
+      regional: "#E3000F", express: "#E3000F", ferry: "#0080BA", walking: "#9CA3AF",
+    };
+    function lineColor(mode, lineName) {
+      return U_BAHN_COLORS[lineName] ?? MODE_COLORS[mode] ?? "#2563EB";
+    }
+
+    // Holt die aktuelle Position eines Zuges/Busses (oder null, wenn unbekannt).
+    async function fetchVehiclePosition(tripId) {
+      const url = `${BVG_API}/trips/${encodeURIComponent(tripId)}?stopovers=false&polyline=false&remarks=false`;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return coordOf(data?.trip?.currentLocation);
+    }
+
+    // Gibt die Verbindung zurück, oder null wenn es keine gibt.
+    // Wirft einen Fehler, wenn die BVG nicht erreichbar ist.
+    async function fetchJourney(from, to) {
+      const url = `${BVG_API}/journeys?${placeParams("from", from)}&${placeParams("to", to)}&results=1&stopovers=true&remarks=true&language=de&polylines=true`;
+      const res = await fetch(url);
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error("BVG-Verbindungssuche fehlgeschlagen");
+      const data = await res.json();
+      const journey = data?.journeys?.[0];
+      if (!journey || !journey.legs?.length) return null;
+
+      const legs = journey.legs
+        .filter((l) => l.line || l.walking)
+        .map((l) => {
+          const walking = !!l.walking;
+          const lineName = walking ? "Fußweg" : l.line?.name ?? "?";
+          const mode = walking ? "walking" : l.line?.product ?? l.line?.mode ?? "?";
+          const start = coordOf(l.origin);
+          const end = coordOf(l.destination);
+          // Streckenverlauf: die BVG liefert [Längengrad, Breitengrad], die Karte braucht es umgekehrt.
+          const path = (l.polyline?.features ?? [])
+            .map((f) => f.geometry?.coordinates)
+            .filter((c) => Array.isArray(c) && c.length >= 2)
+            .map(([lon, lat]) => [lat, lon]);
+          return {
+            lineName,
+            mode,
+            walking,
+            direction: l.direction ?? null,
+            originName: l.origin?.name ?? l.origin?.address ?? "Start",
+            destinationName: l.destination?.name ?? l.destination?.address ?? "Ziel",
+            departure: l.departure ?? l.plannedDeparture,
+            departureDelay: l.departureDelay ?? null, // in Sekunden
+            arrival: l.arrival ?? l.plannedArrival,
+            platform: l.departurePlatform ?? l.plannedDeparturePlatform ?? null,
+            distance: l.distance ?? null, // in Metern (nur Fußwege)
+            tripId: l.tripId ?? null,
+            currentLocation: coordOf(l.currentLocation),
+            path: path.length >= 2 ? path : [start, end].filter(Boolean),
+            color: lineColor(mode, lineName),
+            // Anzahl gefahrener Stationen (für die Kurzstrecke)
+            stopCount: Array.isArray(l.stopovers) && l.stopovers.length > 1 ? l.stopovers.length - 1 : null,
+            cancelled: !!l.cancelled,
+            // Störungshinweise der BVG zu dieser Teilstrecke
+            notices: (l.remarks ?? [])
+              .filter((r) => r.type === "warning" || (r.type === "status" && !/additional/i.test(r.code ?? "")))
+              .map((r) => cleanRemark(r.summary || r.text))
+              .filter(Boolean),
+          };
+        });
+
+      const first = journey.legs[0];
+      const last = journey.legs[journey.legs.length - 1];
+      const departure = first.departure ?? first.plannedDeparture;
+      const arrival = last.arrival ?? last.plannedArrival;
+      const durationMinutes =
+        departure && arrival
+          ? Math.round((new Date(arrival) - new Date(departure)) / 60000)
+          : null;
+
+      const transfers = Math.max(0, legs.filter((l) => l.mode !== "walking").length - 1);
+
+      // Die BVG liefert den Preis (in Euro) fast nie – dann nach VBB-Tarif berechnen.
+      const realPrice = journey.price?.amount ?? null;
+      const fare = realPrice != null
+        ? { priceEuro: realPrice, label: "Preis laut BVG" }
+        : computeFare(legs) ?? { priceEuro: 0, label: "nur Fußweg" };
+
+      return {
+        departure,
+        arrival,
+        durationMinutes,
+        transfers,
+        priceEuro: fare.priceEuro,
+        fareLabel: fare.label,
+        legs,
+      };
+    }
+
+    /* =====================================================================
+       Auto, Fahrrad, Fußweg: echte Route über den freien
+       OpenStreetMap-Routenplaner (routing.openstreetmap.de)
+       ===================================================================== */
+
+    const SELF_MODES = ["car", "bike", "walk"];
+    const SELF_MODE_LABEL = { car: "🚗 Auto", bike: "🚲 Fahrrad", walk: "🚶 Zu Fuß" };
+    const ROUTER_PROFILE = { car: "routed-car", bike: "routed-bike", walk: "routed-foot" };
+
+    // Annahmen fürs Auto – hier anpassen, wenn sich Preise ändern.
+    const CAR = {
+      trafficFactor: 1.35,     // Routenplaner rechnet mit freier Straße; Berliner Verkehr ist langsamer
+      fuelLitersPer100Km: 7,
+      fuelPricePerLiter: 1.75,
+      parkingPerHourInner: 3,  // typische Parkgebühr innerhalb des S-Bahn-Rings (1–4 €/h je nach Zone)
+      searchMinutesInner: 10,  // Parkplatzsuche innerhalb des Rings
+      searchMinutesOuter: 4,   // Parkplatzsuche außerhalb
+      walkFromCarMinutes: 2,
+    };
+
+    // Notlösung, falls der Routenplaner nicht antwortet: Luftlinie × Umweg mit typischem Tempo.
+    const FALLBACK_SPEED_KMH = { car: 24, bike: 15, walk: 4.8 };
+
+    async function fetchRoute(mode, from, to) {
+      const coords = `${from.longitude},${from.latitude};${to.longitude},${to.latitude}`;
+      const url = `https://routing.openstreetmap.de/${ROUTER_PROFILE[mode]}/route/v1/driving/${coords}?overview=false`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Routenplaner nicht erreichbar");
+      const data = await res.json();
+      const route = data?.routes?.[0];
+      if (data.code !== "Ok" || !route) throw new Error("Keine Route");
+      return { km: route.distance / 1000, minutes: route.duration / 60 };
+    }
+
+    // Wirft nie einen Fehler – im Notfall wird geschätzt.
+    async function estimateSelfTrip(mode, from, to, { parkHours = 1 } = {}) {
+      let km, minutes;
+      let routed = true;
+      try {
+        ({ km, minutes } = await fetchRoute(mode, from, to));
+      } catch {
+        routed = false;
+        km = straightLineKm(from, to) * 1.3;
+        minutes = (km / FALLBACK_SPEED_KMH[mode]) * 60;
+      }
+
+      const result = { mode, routed, distanceKm: Math.round(km * 10) / 10, costEuro: 0, details: [] };
+
+      if (mode === "car") {
+        const inner = isInsideRing(to);
+        const ownSpot = parkHours === 0;
+        const drive = routed ? minutes * CAR.trafficFactor : minutes;
+        const search = ownSpot ? 0 : inner ? CAR.searchMinutesInner : CAR.searchMinutesOuter;
+        const fuel = (km * CAR.fuelLitersPer100Km / 100) * CAR.fuelPricePerLiter;
+        const parking = inner && !ownSpot ? parkHours * CAR.parkingPerHourInner : 0;
+
+        result.durationMinutes = Math.round(drive + search + CAR.walkFromCarMinutes);
+        result.costEuro = Math.round((fuel + parking) * 100) / 100;
+        result.details = [
+          `Fahrt ${Math.round(drive)} min${search ? ` + Parkplatzsuche ${search} min` : ""} + Fußweg ${CAR.walkFromCarMinutes} min`,
+          `Sprit ${formatEuro(fuel)}` +
+            (ownSpot
+              ? " · eigener Parkplatz"
+              : inner
+              ? ` + Parken ${formatEuro(parking)} (${parkHours} h × ${formatEuro(CAR.parkingPerHourInner)})`
+              : " · Parken meist kostenlos (Ziel außerhalb des S-Bahn-Rings)"),
+        ];
+      } else {
+        result.durationMinutes = Math.max(1, Math.round(minutes));
+      }
+      return result;
+    }
+
+    // Wie viele Fahrten im Monat, bis sich das Deutschlandticket lohnt?
+    function deutschlandticketBreakEven(singlePrice) {
+      return singlePrice > 0 ? Math.ceil(FARES.deutschlandticketMonth / singlePrice) : null;
+    }
+
+    function loadSetting(key, fallback) {
+      try {
+        const v = localStorage.getItem(key);
+        return v == null ? fallback : JSON.parse(v);
+      } catch {
+        return fallback;
+      }
+    }
+    function saveSetting(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+    }
+
+    /* =====================================================================
+       Bausteine der Oberfläche
+       ===================================================================== */
+
+    function GoNowLogo({ compact = false }) {
+      return (
+        <div className={`flex items-center gap-2 ${compact ? "" : "mb-3 sm:mb-4"}`}>
+          <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true">
+            <rect width="32" height="32" rx="8" fill="#2563EB" />
+            <path d="M8 20L14 11L18 17L24 9" stroke="#7CFC8A" strokeWidth="2.5"
+              strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            <circle cx="24" cy="9" r="2.2" fill="#7CFC8A" />
+          </svg>
+          <span className="text-xl font-bold tracking-tight">
+            <span className="text-white">Go</span>
+            <span className="text-[#60a5fa]">Now</span>
+          </span>
+        </div>
+      );
+    }
+
+    // Eingabefeld mit Live-Vorschlägen der BVG.
+    function LocationAutocomplete({ label, placeholder, value, onChange, disabled, allowMyLocation }) {
+      const [geoState, setGeoState] = useState("idle"); // idle | loading | error
+
+      // Eigenen Standort über den Browser abfragen (der Browser fragt vorher um Erlaubnis).
+      function useMyLocation() {
+        if (!navigator.geolocation) {
+          setGeoState("error");
+          return;
+        }
+        setGeoState("loading");
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const { latitude, longitude } = pos.coords;
+            setGeoState("idle");
+            setResults([]);
+            setOpen(false);
+            onChange({
+              id: `geo-${latitude.toFixed(5)},${longitude.toFixed(5)}`,
+              name: "📍 Mein Standort",
+              addressName: "Mein Standort",
+              latitude,
+              longitude,
+              type: "address",
+            });
+          },
+          () => setGeoState("error"),
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+        );
+      }
+      const [query, setQuery] = useState(value?.name ?? "");
+      const [results, setResults] = useState([]);
+      const [open, setOpen] = useState(false);
+      const [loading, setLoading] = useState(false);
+      const [searchFailed, setSearchFailed] = useState(false);
+      const [highlight, setHighlight] = useState(-1);
+      const listId = useRef(`list-${Math.random().toString(36).slice(2)}`).current;
+
+      // Wenn der Ort von außen geändert wird (z. B. "Tauschen"), Feld anpassen.
+      useEffect(() => {
+        if (value) setQuery(value.name);
+      }, [value]);
+
+      useEffect(() => {
+        // Nichts suchen, wenn das Feld leer ist oder schon ein Ort gewählt wurde.
+        if (!query.trim() || (value && query === value.name)) {
+          setResults([]);
+          setLoading(false);
+          return;
+        }
+        const controller = new AbortController();
+        const timer = setTimeout(async () => {
+          setLoading(true);
+          setSearchFailed(false);
+          try {
+            const locs = await searchLocations(query, controller.signal);
+            setResults(locs);
+            setHighlight(locs.length ? 0 : -1);
+            setOpen(true);
+          } catch (e) {
+            if (e.name === "AbortError") return; // neuere Eingabe ist schon unterwegs
+            setResults([]);
+            setSearchFailed(true);
+            setOpen(true);
+          } finally {
+            if (!controller.signal.aborted) setLoading(false);
+          }
+        }, 350);
+        // Bei jeder neuen Eingabe: alte Suche abbrechen, damit sie nicht die neue überholt.
+        return () => {
+          clearTimeout(timer);
+          controller.abort();
+        };
+      }, [query, value]);
+
+      function choose(loc) {
+        onChange(loc);
+        setQuery(loc.name);
+        setResults([]);
+        setOpen(false);
+      }
+
+      function handleType(text) {
+        setQuery(text);
+        // Der Text passt nicht mehr zum gewählten Ort → Auswahl zurücksetzen.
+        if (value && text !== value.name) onChange(null);
+      }
+
+      function handleKeyDown(e) {
+        if (!open || results.length === 0) {
+          if (e.key === "ArrowDown" && results.length > 0) setOpen(true);
+          return;
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setHighlight((h) => (h + 1) % results.length);
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setHighlight((h) => (h <= 0 ? results.length - 1 : h - 1));
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          choose(results[highlight >= 0 ? highlight : 0]);
+        } else if (e.key === "Escape") {
+          setOpen(false);
+        }
+      }
+
+      const showList = open && (results.length > 0 || searchFailed || (!loading && query.trim().length >= 2 && !value));
+
+      return (
+        <div className="relative w-full">
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium text-gray-300">{label}</label>
+            {allowMyLocation && (
+              <button type="button" onClick={useMyLocation} disabled={disabled || geoState === "loading"}
+                className="text-xs text-[#60a5fa] hover:text-white transition disabled:opacity-50">
+                {geoState === "loading" ? "Suche Standort…" : "📍 Mein Standort"}
+              </button>
+            )}
+          </div>
+          {geoState === "error" && (
+            <p className="text-xs text-red-400 mb-1">
+              Standort nicht verfügbar – bitte im Browser erlauben oder Adresse eintippen.
+            </p>
+          )}
+          <div className="relative">
+            <input
+              type="text"
+              value={query}
+              placeholder={placeholder}
+              disabled={disabled}
+              onChange={(e) => handleType(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={() => results.length > 0 && setOpen(true)}
+              onBlur={() => setOpen(false)}
+              role="combobox"
+              aria-expanded={showList}
+              aria-controls={listId}
+              aria-autocomplete="list"
+              aria-label={label}
+              className={`w-full pl-3 pr-9 py-2 bg-black border text-white placeholder-gray-500 rounded-lg focus:ring-2 focus:ring-[#2563EB] focus:outline-none disabled:opacity-50 ${
+                value ? "border-[#7CFC8A]/50" : "border-white/20"
+              }`}
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs" aria-hidden="true">
+              {loading ? <span className="text-gray-400">…</span> : value ? <span className="text-[#7CFC8A]">✓</span> : null}
+            </span>
+          </div>
+          {showList && (
+            <ul id={listId} role="listbox"
+              className="absolute z-10 mt-1 w-full bg-[#0d0d0d] border border-white/20 rounded-lg shadow-lg max-h-64 overflow-auto">
+              {searchFailed ? (
+                <li className="px-3 py-2 text-sm text-red-400">Suche gerade nicht möglich.</li>
+              ) : results.length === 0 ? (
+                <li className="px-3 py-2 text-sm text-gray-400">Nichts gefunden.</li>
+              ) : (
+                results.map((loc, i) => (
+                  <li key={loc.id} role="option" aria-selected={i === highlight}>
+                    <button
+                      type="button"
+                      // onMouseDown statt onClick: passiert vor dem Verlassen des Feldes
+                      onMouseDown={(e) => { e.preventDefault(); choose(loc); }}
+                      onMouseEnter={() => setHighlight(i)}
+                      className={`w-full text-left px-3 py-2 text-sm text-white ${
+                        i === highlight ? "bg-[#7CFC8A]/10" : ""
+                      }`}
+                    >
+                      <span className="font-medium">{loc.name}</span>
+                      <span className="ml-2 text-xs text-gray-400">
+                        {loc.type === "stop" ? "Haltestelle" : "Adresse"}
+                      </span>
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          )}
+        </div>
+      );
+    }
+
+    function ModeSelector({ selected, onToggle, disabled }) {
+      return (
+        <div>
+          <span className="block text-xs font-medium text-gray-300 mb-1.5">Womit vergleichen?</span>
+          <div className="flex flex-wrap gap-2">
+            {SELF_MODES.map((mode) => {
+              const active = selected.includes(mode);
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onToggle(mode)}
+                  aria-pressed={active}
+                  className={`px-3 py-1.5 rounded-full text-sm border transition disabled:opacity-50 ${
+                    active
+                      ? "bg-[#2563EB] text-white border-[#2563EB]"
+                      : "bg-black text-gray-300 border-white/20 hover:border-white/40"
+                  }`}
+                >
+                  {SELF_MODE_LABEL[mode]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    const LEG_MODE_ICON = {
+      bus: "🚌", subway: "🚇", tram: "🚊", suburban: "🚆", regional: "🚆",
+      express: "🚄", ferry: "⛴️", walking: "🚶",
+    };
+
+    function CompareResult({ journey, transitFailed, selfEstimates, dticket, onShowTrip }) {
+      const breakEven = journey ? deutschlandticketBreakEven(journey.priceEuro) : null;
+      const cards = [];
+
+      cards.push({
+        key: "transit",
+        title: "🚆 ÖPNV",
+        durationMinutes: journey?.durationMinutes ?? null,
+        body: journey ? (
+          <>
+            <p className="text-sm text-gray-400">
+              {formatTime(journey.departure)} → {formatTime(journey.arrival)} ·{" "}
+              {journey.transfers} Umstieg{journey.transfers === 1 ? "" : "e"}
+            </p>
+            {dticket ? (
+              <p className="text-sm text-gray-200 mt-2">
+                <span className="font-medium">0,00 € extra</span>{" "}
+                <span className="text-xs text-gray-500">
+                  mit Deutschlandticket ({formatEuro(FARES.deutschlandticketMonth)}/Monat)
+                </span>
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-gray-200 mt-2">
+                  <span className="font-medium">{formatEuro(journey.priceEuro)}</span>{" "}
+                  <span className="text-xs text-gray-500">{journey.fareLabel}</span>
+                </p>
+                {breakEven && (
+                  <p className="text-xs text-gray-500">Deutschlandticket lohnt sich ab {breakEven} Fahrten im Monat</p>
+                )}
+              </>
+            )}
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {journey.legs.map((leg, i) => (
+                <span key={i} className="text-xs bg-white/10 text-gray-200 px-2 py-1 rounded-full"
+                  title={leg.walking ? "Fußweg" : undefined}>
+                  {leg.walking ? "🚶" : `${LEG_MODE_ICON[leg.mode] ?? "🚏"} ${leg.lineName}`}
+                </span>
+              ))}
+            </div>
+            {onShowTrip && (
+              <button type="button" onClick={onShowTrip}
+                className="sm:hidden mt-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium border border-[#7CFC8A]/40 text-[#7CFC8A] active:bg-[#7CFC8A]/10">
+                Route &amp; Live-Position ansehen →
+              </button>
+            )}
+          </>
+        ) : transitFailed ? (
+          <p className="text-sm text-red-400">BVG gerade nicht erreichbar.</p>
+        ) : (
+          <p className="text-sm text-gray-400">Keine Verbindung gefunden.</p>
+        ),
+      });
+
+      for (const est of selfEstimates) {
+        cards.push({
+          key: est.mode,
+          title: SELF_MODE_LABEL[est.mode],
+          durationMinutes: est.durationMinutes,
+          body: (
+            <>
+              <p className="text-sm text-gray-400">
+                {est.distanceKm.toLocaleString("de-DE")} km
+                {!est.routed && " (geschätzt – Routenplaner nicht erreichbar)"}
+              </p>
+              <p className="text-sm font-medium text-gray-200 mt-2">
+                {est.costEuro > 0 ? formatEuro(est.costEuro) : "kostenlos"}
+              </p>
+              {est.details.map((d, i) => (
+                <p key={i} className="text-xs text-gray-500 mt-1">{d}</p>
+              ))}
+            </>
+          ),
+        });
+      }
+
+      const durations = cards.map((c) => c.durationMinutes).filter((d) => d != null);
+      const fastest = durations.length ? Math.min(...durations) : null;
+      const showRanks = durations.length > 1;
+
+      // Schnellste zuerst, Karten ohne Zeit ans Ende.
+      const sorted = [...cards].sort((a, b) => {
+        if (a.durationMinutes == null) return 1;
+        if (b.durationMinutes == null) return -1;
+        return a.durationMinutes - b.durationMinutes;
+      });
+
+      return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          {sorted.map((c) => {
+            const isFastest = showRanks && c.durationMinutes === fastest;
+            // Gleich schnelle Optionen bekommen denselben Platz.
+            const rank = 1 + durations.filter((d) => d < c.durationMinutes).length;
+            return (
+              <div key={c.key}
+                className={`rounded-xl border p-4 sm:p-5 ${
+                  isFastest ? "border-[#7CFC8A] bg-[#7CFC8A]/10" : "border-white/10 bg-[#0d0d0d]"
+                }`}>
+                {/* Kopfzeile: Verkehrsmittel + Platz links, Dauer groß rechts */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-white">{c.title}</h3>
+                    {showRanks && c.durationMinutes != null && (
+                      <span className={`inline-block mt-1 text-xs font-medium px-2 py-0.5 rounded-full ${
+                        isFastest ? "text-[#7CFC8A] bg-[#7CFC8A]/20" : "text-gray-400 bg-white/10"
+                      }`}>
+                        {isFastest ? "schnellste Option" : `Platz ${rank}`}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-bold text-white tabular-nums whitespace-nowrap">
+                    {c.durationMinutes != null ? `${c.durationMinutes} min` : "–"}
+                  </p>
+                </div>
+                <div className="mt-2">{c.body}</div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    function CompareTripForm({ onResult, onShowTrip }) {
+      const resultsRef = useRef(null);
+      const [from, setFrom] = useState(null);
+      const [to, setTo] = useState(null);
+      const [modes, setModes] = useState(["car"]);
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState(null);
+      const [result, setResult] = useState(null); // { journey, transitFailed, selfEstimates }
+      const [comparisons, setComparisons] = useState(0);
+      // Einstellungen werden im Browser gemerkt.
+      const [dticket, setDticket] = useState(() => loadSetting("gonow.dticket", false));
+      const [parkHours, setParkHours] = useState(() => loadSetting("gonow.parkHours", 1));
+      useEffect(() => saveSetting("gonow.dticket", dticket), [dticket]);
+      useEffect(() => saveSetting("gonow.parkHours", parkHours), [parkHours]);
+
+      const canCompare = from && to && modes.length > 0 && !loading;
+
+      // Auf dem Handy nach dem Vergleich automatisch zu den Ergebnissen scrollen.
+      useEffect(() => {
+        if (result && window.matchMedia("(max-width: 639px)").matches) {
+          resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, [result]);
+
+      function toggleMode(mode) {
+        setModes((prev) => (prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]));
+      }
+
+      async function handleCompare() {
+        if (!canCompare) return;
+        setLoading(true);
+        setError(null);
+        // ÖPNV und alle Routen gleichzeitig abfragen – das spart Wartezeit.
+        const selected = SELF_MODES.filter((m) => modes.includes(m));
+        const [journeyResult, ...selfEstimates] = await Promise.all([
+          fetchJourney(from, to).then((j) => ({ journey: j }), () => ({ failed: true })),
+          ...selected.map((m) => estimateSelfTrip(m, from, to, { parkHours })),
+        ]);
+        const journey = journeyResult.journey ?? null;
+        const transitFailed = !!journeyResult.failed;
+        if (transitFailed) setError(ERROR_TEXT);
+        // Alternativen werden immer angezeigt – auch wenn die BVG streikt.
+        setResult({ journey, transitFailed, selfEstimates });
+        onResult?.(journey ? { journey, from, to } : null);
+        setComparisons((n) => n + 1);
+        setLoading(false);
+      }
+
+      return (
+        <div>
+          <div className="flex flex-col sm:flex-row gap-4 items-start">
+            <LocationAutocomplete label="Start" placeholder="z. B. Alexanderplatz"
+              value={from} onChange={setFrom} disabled={loading} allowMyLocation />
+            <LocationAutocomplete label="Ziel" placeholder="z. B. Potsdamer Platz"
+              value={to} onChange={setTo} disabled={loading} />
+          </div>
+
+          <div className="mt-4">
+            <ModeSelector selected={modes} onToggle={toggleMode} disabled={loading} />
+          </div>
+
+          <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+            <label className="inline-flex items-center gap-2 text-sm text-gray-300 cursor-pointer select-none">
+              <input type="checkbox" checked={dticket} onChange={(e) => setDticket(e.target.checked)}
+                className="h-4 w-4 accent-[#2563EB]" />
+              Ich habe ein Deutschlandticket
+            </label>
+            {modes.includes("car") && (
+              <label className="inline-flex items-center gap-2 text-sm text-gray-300">
+                Parken am Ziel:
+                <select value={parkHours} onChange={(e) => setParkHours(Number(e.target.value))} disabled={loading}
+                  className="bg-black border border-white/20 rounded-lg px-2 py-1.5 text-white text-base sm:text-sm focus:ring-2 focus:ring-[#2563EB] focus:outline-none">
+                  <option value={0}>eigener Parkplatz</option>
+                  <option value={1}>1 Stunde</option>
+                  <option value={2}>2 Stunden</option>
+                  <option value={4}>4 Stunden</option>
+                  <option value={8}>8 Stunden (Arbeitstag)</option>
+                </select>
+              </label>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={!canCompare}
+              onClick={handleCompare}
+              className="w-full sm:w-auto px-5 py-2.5 bg-[#2563EB] text-white rounded-lg font-medium hover:bg-[#1d4ed8] transition disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {loading ? "Vergleiche…" : "Vergleichen"}
+            </button>
+            {!loading && (!from || !to) && (
+              <span className="text-xs text-gray-500">Wähle Start und Ziel aus der Vorschlagsliste.</span>
+            )}
+            {!loading && from && to && modes.length === 0 && (
+              <span className="text-xs text-gray-500">Wähle mindestens ein Verkehrsmittel.</span>
+            )}
+          </div>
+
+          {error && (
+            <p className="mt-3 text-sm text-red-400" role="alert">
+              {error}{" "}
+              <button type="button" onClick={handleCompare} className="underline hover:text-red-300">
+                Nochmal versuchen
+              </button>
+            </p>
+          )}
+
+          {result && (
+            <div ref={resultsRef} className="mt-6 scroll-mt-4">
+              <CompareResult {...result} dticket={dticket} onShowTrip={result.journey ? onShowTrip : null} />
+            </div>
+          )}
+
+          {comparisons > 1 && (
+            <p className="mt-4 text-xs text-gray-400">{comparisons} Vergleiche in dieser Sitzung</p>
+          )}
+        </div>
+      );
+    }
+
+    const REPORT_TYPE_LABEL = { stau: "🚗 Stau", stoerung: "🚇 Störung" };
+
+    function ReportList({ reports }) {
+      // Jede halbe Minute neu zeichnen, damit "vor X min" aktuell bleibt.
+      const [now, setNow] = useState(Date.now());
+      useEffect(() => {
+        const t = setInterval(() => setNow(Date.now()), 30000);
+        return () => clearInterval(t);
+      }, []);
+
+      return (
+        <div className="bg-[#0d0d0d] rounded-xl p-5 border border-white/10">
+          <h2 className="font-semibold text-white mb-3">Meldungen von Nutzern</h2>
+          {reports.length === 0 ? (
+            <p className="text-sm text-gray-400">Noch keine Meldungen.</p>
+          ) : (
+            <ul className="space-y-3 max-h-72 overflow-auto">
+              {reports.map((r) => (
+                <li key={r.id} className="border-b border-white/10 pb-2 last:border-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-sm font-medium text-white">
+                      {REPORT_TYPE_LABEL[r.type]} · {r.location}
+                    </span>
+                    <span className="text-xs text-gray-400 whitespace-nowrap">{timeAgo(r.createdAt, now)}</span>
+                  </div>
+                  {r.note && <p className="text-sm text-gray-300 mt-0.5">{r.note}</p>}
+                  <p className="text-xs text-gray-500 mt-0.5">gemeldet von {r.userName}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      );
+    }
+
+    function ReportForm({ onSubmit }) {
+      const [userName, setUserName] = useState("");
+      const [type, setType] = useState("stau");
+      const [location, setLocation] = useState("");
+      const [note, setNote] = useState("");
+      const [sent, setSent] = useState(false);
+      const timer = useRef(null);
+      useEffect(() => () => clearTimeout(timer.current), []);
+
+      const canSubmit = userName.trim() && location.trim();
+      const inputClass =
+        "w-full px-3 py-2 bg-black border border-white/20 text-white placeholder-gray-500 rounded-lg text-base sm:text-sm focus:ring-2 focus:ring-[#2563EB] focus:outline-none";
+
+      function handleSubmit(e) {
+        e.preventDefault();
+        if (!canSubmit) return;
+        onSubmit({ userName: userName.trim(), type, location: location.trim(), note: note.trim() });
+        setLocation("");
+        setNote("");
+        setSent(true);
+        clearTimeout(timer.current);
+        timer.current = setTimeout(() => setSent(false), 2000);
+      }
+
+      const typeButton = (value, label) => (
+        <button type="button" onClick={() => setType(value)} aria-pressed={type === value}
+          className={`flex-1 px-3 py-1.5 rounded-lg text-sm border transition ${
+            type === value ? "bg-[#2563EB] text-white border-[#2563EB]" : "bg-black text-gray-300 border-white/20 hover:border-white/40"
+          }`}>
+          {label}
+        </button>
+      );
+
+      return (
+        <form onSubmit={handleSubmit} className="bg-[#0d0d0d] rounded-xl p-5 border border-white/10">
+          <h2 className="font-semibold text-white mb-3">Stau oder Störung melden</h2>
+          <div className="space-y-3">
+            <div>
+              <label htmlFor="r-name" className="block text-xs font-medium text-gray-300 mb-1">Dein Name</label>
+              <input id="r-name" type="text" value={userName} onChange={(e) => setUserName(e.target.value)}
+                placeholder="z. B. Anna" className={inputClass} />
+            </div>
+            <div>
+              <span className="block text-xs font-medium text-gray-300 mb-1">Art</span>
+              <div className="flex gap-2">
+                {typeButton("stau", "🚗 Stau")}
+                {typeButton("stoerung", "🚇 Störung")}
+              </div>
+            </div>
+            <div>
+              <label htmlFor="r-loc" className="block text-xs font-medium text-gray-300 mb-1">Ort</label>
+              <input id="r-loc" type="text" value={location} onChange={(e) => setLocation(e.target.value)}
+                placeholder="z. B. S-Bahn-Ring, A100, U9 Hansaplatz" className={inputClass} />
+            </div>
+            <div>
+              <label htmlFor="r-note" className="block text-xs font-medium text-gray-300 mb-1">Details (optional)</label>
+              <textarea id="r-note" value={note} onChange={(e) => setNote(e.target.value)}
+                placeholder="Was ist los?" rows={2} className={`${inputClass} resize-none`} />
+            </div>
+            <button type="submit" disabled={!canSubmit && !sent}
+              className={`w-full px-4 py-2 text-white rounded-lg text-sm font-medium transition disabled:opacity-40 disabled:cursor-not-allowed ${
+                sent ? "bg-green-700" : "bg-[#2563EB] hover:bg-[#1d4ed8]"
+              }`}>
+              {sent ? "Danke für die Meldung! ✓" : "Melden"}
+            </button>
+          </div>
+        </form>
+      );
+    }
+
+    /* =====================================================================
+       Live-Karte: welche Bahn nehmen, und wo ist sie gerade?
+       ===================================================================== */
+
+    const POSITION_REFRESH_MS = 15000;
+
+    function escapeHtml(text) {
+      return String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    function minutesUntil(iso, now) {
+      return Math.round((new Date(iso).getTime() - now) / 60000);
+    }
+
+    function formatDistance(km) {
+      return km < 1 ? `${Math.round(km * 1000 / 50) * 50} m` : `${km.toLocaleString("de-DE", { maximumFractionDigits: 1 })} km`;
+    }
+
+    function LiveTripSection({ journey, onRefresh, refreshing, refreshError, visible = true }) {
+      const containerRef = useRef(null);
+      const boundsRef = useRef([]);
+      const mapRef = useRef(null);
+      const routeLayerRef = useRef(null);
+      const vehicleLayerRef = useRef(null);
+      const [positions, setPositions] = useState({}); // Teilstrecke (Index) → [Breite, Länge]
+      const [updatedAt, setUpdatedAt] = useState(null);
+      const [now, setNow] = useState(Date.now());
+
+      // Uhr für Countdown ("Abfahrt in 3 min") weiterlaufen lassen.
+      useEffect(() => {
+        const t = setInterval(() => setNow(Date.now()), 10000);
+        return () => clearInterval(t);
+      }, []);
+
+      // Karte einmal anlegen.
+      useEffect(() => {
+        const map = L.map(containerRef.current, { scrollWheelZoom: false });
+        // Freie OpenStreetMap-Karte im Standard-Design.
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        }).addTo(map);
+        routeLayerRef.current = L.layerGroup().addTo(map);
+        vehicleLayerRef.current = L.layerGroup().addTo(map);
+        mapRef.current = map;
+        return () => map.remove();
+      }, []);
+
+      // Strecke zeichnen, sobald eine (neue) Verbindung da ist.
+      useEffect(() => {
+        const map = mapRef.current;
+        const layer = routeLayerRef.current;
+        if (!map || !layer) return;
+        layer.clearLayers();
+        const allPoints = [];
+
+        journey.legs.forEach((leg) => {
+          if (leg.path.length < 2) return;
+          if (leg.walking) {
+            L.polyline(leg.path, { color: "#9CA3AF", weight: 4, dashArray: "2 8", lineCap: "round" }).addTo(layer);
+          } else {
+            L.polyline(leg.path, { color: "#ffffff", weight: 10, opacity: 0.25 }).addTo(layer);
+            L.polyline(leg.path, { color: leg.color, weight: 6, opacity: 1 })
+              .bindTooltip(`${leg.lineName} Richtung ${leg.direction ?? "?"}`, { sticky: true })
+              .addTo(layer);
+            // Einstieg und Ausstieg markieren
+            [[leg.path[0], `Einsteigen: ${leg.originName}`], [leg.path[leg.path.length - 1], `Aussteigen: ${leg.destinationName}`]]
+              .forEach(([pos, label]) =>
+                L.circleMarker(pos, { radius: 6, color: "#fff", weight: 2, fillColor: leg.color, fillOpacity: 1 })
+                  .bindTooltip(label).addTo(layer));
+          }
+          allPoints.push(...leg.path);
+        });
+
+        if (allPoints.length) {
+          const start = allPoints[0];
+          const end = allPoints[allPoints.length - 1];
+          L.circleMarker(start, { radius: 8, color: "#000", weight: 3, fillColor: "#7CFC8A", fillOpacity: 1 })
+            .bindTooltip("Start").addTo(layer);
+          L.circleMarker(end, { radius: 8, color: "#000", weight: 3, fillColor: "#ffffff", fillOpacity: 1 })
+            .bindTooltip("Ziel").addTo(layer);
+          map.invalidateSize();
+          map.fitBounds(allPoints, { padding: [30, 30], maxZoom: 16 });
+        }
+        boundsRef.current = allPoints;
+
+        // Erste Zugpositionen kommen direkt mit der Verbindung.
+        const initial = {};
+        journey.legs.forEach((leg, i) => { if (leg.currentLocation) initial[i] = leg.currentLocation; });
+        setPositions(initial);
+        setUpdatedAt(Date.now());
+      }, [journey]);
+
+      // Auf dem Handy liegt die Karte in einem versteckten Tab – beim Einblenden Größe neu berechnen.
+      useEffect(() => {
+        const map = mapRef.current;
+        if (!visible || !map) return;
+        const t = setTimeout(() => {
+          map.invalidateSize();
+          if (boundsRef.current.length) map.fitBounds(boundsRef.current, { padding: [30, 30], maxZoom: 16 });
+        }, 50);
+        return () => clearTimeout(t);
+      }, [visible, journey]);
+
+      // Zugpositionen alle 15 Sekunden neu abfragen.
+      useEffect(() => {
+        const transitLegs = journey.legs.map((leg, i) => [leg, i]).filter(([leg]) => leg.tripId);
+        if (transitLegs.length === 0) return;
+        let cancelled = false;
+
+        async function update() {
+          if (document.hidden) return; // Tab im Hintergrund → nicht unnötig abfragen
+          const results = await Promise.all(
+            transitLegs.map(async ([leg, i]) => {
+              if (leg.arrival && new Date(leg.arrival).getTime() < Date.now()) return null; // Fahrt ist vorbei
+              try {
+                const pos = await fetchVehiclePosition(leg.tripId);
+                return pos ? [i, pos] : null;
+              } catch {
+                return null;
+              }
+            })
+          );
+          if (cancelled) return;
+          const found = results.filter(Boolean);
+          if (found.length) {
+            setPositions((prev) => ({ ...prev, ...Object.fromEntries(found) }));
+            setUpdatedAt(Date.now());
+          }
+        }
+
+        const t = setInterval(update, POSITION_REFRESH_MS);
+        return () => { cancelled = true; clearInterval(t); };
+      }, [journey]);
+
+      // Züge/Busse auf der Karte anzeigen.
+      useEffect(() => {
+        const layer = vehicleLayerRef.current;
+        if (!layer) return;
+        layer.clearLayers();
+        Object.entries(positions).forEach(([i, pos]) => {
+          const leg = journey.legs[i];
+          if (!leg) return;
+          const icon = L.divIcon({
+            className: "",
+            html: `<div class="vehicle-marker" style="--c:${leg.color}">${escapeHtml(leg.lineName)}</div>`,
+            iconSize: [44, 24],
+            iconAnchor: [22, 12],
+          });
+          L.marker(pos, { icon, zIndexOffset: 1000 })
+            .bindTooltip(`${leg.lineName} – gerade hier`)
+            .addTo(layer);
+        });
+      }, [positions, journey]);
+
+      // ---- Texte über der Karte ----
+      const firstLeg = journey.legs[0];
+      const mainLeg = journey.legs.find((l) => !l.walking);
+      const mainIndex = journey.legs.indexOf(mainLeg);
+      const leaveIn = firstLeg?.departure ? minutesUntil(firstLeg.departure, now) : null;
+      const missed = leaveIn != null && leaveIn < -1;
+      const mainPos = positions[mainIndex];
+      const mainStop = mainLeg?.path[0];
+      const vehicleDistanceKm = mainPos && mainStop
+        ? straightLineKm({ latitude: mainPos[0], longitude: mainPos[1] }, { latitude: mainStop[0], longitude: mainStop[1] })
+        : null;
+      const mainDepartureIn = mainLeg?.departure ? minutesUntil(mainLeg.departure, now) : null;
+
+      let headline;
+      if (missed) headline = "Diese Verbindung ist schon weg.";
+      else if (firstLeg?.walking) {
+        headline = leaveIn == null || leaveIn <= 0
+          ? "Jetzt losgehen!"
+          : `In ${leaveIn} min losgehen (${formatTime(firstLeg.departure)})`;
+      } else {
+        // Start ist direkt eine Haltestelle → die Abfahrt zählt.
+        headline = leaveIn == null || leaveIn <= 0
+          ? `Abfahrt jetzt (${formatTime(firstLeg.departure)})`
+          : `Abfahrt in ${leaveIn} min (${formatTime(firstLeg.departure)})`;
+      }
+
+      return (
+        <section className="sm:mt-6 bg-[#0d0d0d] rounded-xl p-4 sm:p-6 border border-white/10">
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+            <div>
+              <h2 className="font-semibold text-white">Wenn du jetzt losgehst</h2>
+              <p className={`text-xl sm:text-2xl font-bold mt-1 ${missed ? "text-red-400" : "text-[#7CFC8A]"}`}>{headline}</p>
+            </div>
+            <button type="button" onClick={onRefresh} disabled={refreshing}
+              className="px-3 py-1.5 rounded-lg text-sm border border-white/20 text-gray-200 hover:border-white/40 transition disabled:opacity-50">
+              {refreshing ? "Lädt…" : "↻ Neue Verbindung laden"}
+            </button>
+          </div>
+
+          {refreshError && (
+            <p className="text-sm text-red-400 mb-3" role="alert">{ERROR_TEXT}</p>
+          )}
+
+          {mainLeg ? (
+            <div className="rounded-lg border border-white/10 bg-black p-4 mb-4">
+              <div className="flex items-center gap-3">
+                <span className="px-2.5 py-1 rounded-md text-white font-bold text-sm" style={{ background: mainLeg.color }}>
+                  {mainLeg.lineName}
+                </span>
+                <span className="text-white font-medium">Richtung {mainLeg.direction ?? "?"}</span>
+              </div>
+              <p className="text-sm text-gray-300 mt-2">
+                Einsteigen an <span className="text-white">{shortStopName(mainLeg.originName)}</span>
+                {mainLeg.platform && <> · Gleis {mainLeg.platform}</>}
+                {" "}um <span className="text-white">{formatTime(mainLeg.departure)}</span>
+                {mainLeg.departureDelay > 0 && (
+                  <span className="text-red-400"> (+{Math.round(mainLeg.departureDelay / 60)} min)</span>
+                )}
+                {mainDepartureIn != null && mainDepartureIn >= 0 && <span className="text-gray-400"> – in {mainDepartureIn} min</span>}
+              </p>
+              <p className="text-sm mt-1">
+                {mainPos ? (
+                  mainDepartureIn != null && mainDepartureIn >= 0 ? (
+                    <span className="text-[#7CFC8A]">
+                      📍 Die {mainLeg.lineName} ist gerade ca. {formatDistance(vehicleDistanceKm)} von deiner Haltestelle entfernt.
+                    </span>
+                  ) : (
+                    <span className="text-[#7CFC8A]">📍 Die {mainLeg.lineName} ist unterwegs – Position siehe Karte.</span>
+                  )
+                ) : (
+                  <span className="text-gray-500">Live-Position der Bahn gerade nicht verfügbar.</span>
+                )}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 mb-4">Für diese Strecke schlägt die BVG nur einen Fußweg vor.</p>
+          )}
+
+          {(() => {
+            // Störungen und Ausfälle, die genau diese Verbindung betreffen.
+            const notices = [];
+            journey.legs.forEach((leg) => {
+              if (leg.cancelled) notices.push(`${leg.lineName}: Diese Fahrt fällt aus!`);
+              leg.notices.forEach((n) => notices.push(leg.walking ? n : `${leg.lineName}: ${n}`));
+            });
+            const unique = [...new Set(notices)];
+            if (unique.length === 0) return null;
+            return (
+              <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 mb-4" role="alert">
+                <p className="text-sm font-medium text-red-300 mb-1">⚠️ Hinweise zu deiner Verbindung</p>
+                <ul className="text-sm text-red-200 space-y-0.5">
+                  {unique.slice(0, 5).map((n, i) => <li key={i}>{n}</li>)}
+                </ul>
+              </div>
+            );
+          })()}
+
+          {/* Feste Höhe direkt im Element: Die Karte braucht ihre Größe schon beim Anlegen. */}
+          <div ref={containerRef} style={{ height: "clamp(320px, 50vh, 420px)" }}
+            className="rounded-lg overflow-hidden border border-white/10" />
+
+          <ol className="mt-4 space-y-2">
+            {journey.legs.map((leg, i) => (
+              <li key={i} className="flex gap-3 text-sm">
+                <span className="w-12 shrink-0 text-gray-400 tabular-nums">{formatTime(leg.departure)}</span>
+                <span className="w-1 shrink-0 rounded-full" style={{ background: leg.color }} />
+                <span className="text-gray-200">
+                  {leg.walking ? (
+                    <>🚶 Zu Fuß{leg.distance ? ` (${formatDistance(leg.distance / 1000)})` : ""} bis <span className="text-white">{shortStopName(leg.destinationName)}</span></>
+                  ) : (
+                    <>
+                      {LEG_MODE_ICON[leg.mode] ?? "🚏"} <span className="font-semibold text-white">{leg.lineName}</span> Richtung {shortStopName(leg.direction ?? "?")} von {shortStopName(leg.originName)} bis{" "}
+                      <span className="text-white">{shortStopName(leg.destinationName)}</span> (an {formatTime(leg.arrival)})
+                    </>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ol>
+
+          <p className="mt-3 text-xs text-gray-500">
+            Bahn-Position live von der BVG, aktualisiert alle 15 Sekunden
+            {updatedAt && <> · Stand {new Date(updatedAt).toLocaleTimeString("de-DE")}</>}.
+          </p>
+        </section>
+      );
+    }
+
+    /* =====================================================================
+       Live-Störungen der BVG
+       Die Schnittstelle hat keine Gesamtliste, deshalb fragen wir die
+       Abfahrten der großen Knotenbahnhöfe ab und sammeln Ausfälle,
+       Verspätungen und Störungshinweise je Linie.
+       ===================================================================== */
+
+    const DISRUPTION_HUBS = [
+      "900100003", // Alexanderplatz
+      "900003201", // Hauptbahnhof
+      "900100001", // Friedrichstraße
+      "900023201", // Zoologischer Garten
+      "900058101", // Südkreuz
+      "900120003", // Ostkreuz
+      "900007102", // Gesundbrunnen
+      "900100020", // Potsdamer Platz
+      "900029101", // Spandau
+    ];
+    const DISRUPTION_REFRESH_MS = 120000;
+    const BIG_DELAY_SECONDS = 5 * 60;
+
+    async function fetchDisruptions() {
+      const params = "duration=60&results=100&remarks=true&language=de&bus=false&tram=false&ferry=false";
+      const responses = await Promise.allSettled(
+        DISRUPTION_HUBS.map((id) =>
+          fetch(`${BVG_API}/stops/${id}/departures?${params}`).then((r) => (r.ok ? r.json() : Promise.reject()))
+        )
+      );
+      const ok = responses.filter((r) => r.status === "fulfilled").map((r) => r.value);
+      if (ok.length === 0) throw new Error("BVG nicht erreichbar");
+
+      const byLine = new Map();
+      const countedTrips = new Set();
+      for (const data of ok) {
+        for (const d of data.departures ?? data) {
+          const line = d.line?.name;
+          if (!line) continue;
+          const entry = byLine.get(line) ?? {
+            line, color: lineColor(d.line.product, line), cancelled: [], maxDelay: 0, messages: new Set(),
+          };
+          const tripKey = d.tripId ?? `${line}|${d.plannedWhen}|${d.direction}`;
+          if (d.cancelled) {
+            if (!countedTrips.has(tripKey)) {
+              countedTrips.add(tripKey);
+              entry.cancelled.push({ direction: d.direction, stop: d.stop?.name, when: d.plannedWhen });
+            }
+          } else if (d.delay >= BIG_DELAY_SECONDS) {
+            entry.maxDelay = Math.max(entry.maxDelay, d.delay);
+          }
+          for (const r of d.remarks ?? []) {
+            const isWarning = r.type === "warning";
+            const isPartial = r.type === "status" && /partially|replacement|ersatz/i.test(r.code ?? "");
+            if ((isWarning || isPartial) && (r.summary || r.text)) entry.messages.add(cleanRemark(r.summary || r.text));
+          }
+          byLine.set(line, entry);
+        }
+      }
+
+      return [...byLine.values()]
+        .map((e) => ({ ...e, messages: [...e.messages] }))
+        .filter((e) => e.cancelled.length || e.maxDelay || e.messages.length)
+        .map((e) => ({ ...e, score: e.cancelled.length * 3 + e.messages.length * 2 + (e.maxDelay ? 1 : 0) }))
+        .sort((a, b) => b.score - a.score);
+    }
+
+    function shortStopName(name = "") {
+      return name.replace(/\s*\(Berlin\)/, "").replace(/\s*\[[^\]]*\]/, "").replace(/ Bhf$/, "");
+    }
+
+    function LiveDisruptions({ onCount }) {
+      const [items, setItems] = useState(null); // null = lädt noch
+      const [failed, setFailed] = useState(false);
+      const [loading, setLoading] = useState(false);
+      const [updatedAt, setUpdatedAt] = useState(null);
+      const [showAll, setShowAll] = useState(false);
+
+      async function load() {
+        setLoading(true);
+        try {
+          setItems(await fetchDisruptions());
+          setFailed(false);
+          setUpdatedAt(Date.now());
+        } catch {
+          setFailed(true);
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      useEffect(() => {
+        load();
+        const t = setInterval(() => { if (!document.hidden) load(); }, DISRUPTION_REFRESH_MS);
+        return () => clearInterval(t);
+      }, []);
+
+      // Anzahl betroffener Linien an die Tab-Leiste melden (rotes Zähler-Abzeichen).
+      useEffect(() => { onCount?.(items?.length ?? 0); }, [items]);
+
+      const visible = items ? (showAll ? items : items.slice(0, 6)) : [];
+
+      return (
+        <section className="sm:mt-8 bg-[#0d0d0d] rounded-xl p-4 sm:p-5 border border-white/10">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <h2 className="font-semibold text-white">Live-Störungen bei S-Bahn, U-Bahn &amp; Regionalzügen</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Direkt von der BVG · nächste Stunde an großen Bahnhöfen</p>
+            </div>
+            <button type="button" onClick={load} disabled={loading}
+              className="shrink-0 px-3 py-1.5 rounded-lg text-sm border border-white/20 text-gray-200 hover:border-white/40 transition disabled:opacity-50">
+              {loading ? "Lädt…" : "↻"}
+            </button>
+          </div>
+
+          {failed && <p className="text-sm text-red-400 mb-2">Störungen konnten nicht geladen werden.</p>}
+          {items === null && !failed && <p className="text-sm text-gray-400">Lade Störungen…</p>}
+          {items && items.length === 0 && (
+            <p className="text-sm text-[#7CFC8A]">✓ Gerade keine größeren Störungen gemeldet.</p>
+          )}
+
+          {visible.length > 0 && (
+            <ul className="space-y-3">
+              {visible.map((e) => {
+                const first = e.cancelled[0];
+                return (
+                  <li key={e.line} className="flex gap-3">
+                    <span className="shrink-0 h-6 min-w-[2.75rem] px-1.5 rounded-md text-white text-xs font-bold flex items-center justify-center"
+                      style={{ background: e.color }}>
+                      {e.line}
+                    </span>
+                    <div className="text-sm text-gray-300 space-y-0.5">
+                      {e.cancelled.length > 0 && (
+                        <p>
+                          <span className="text-red-400 font-medium">
+                            {e.cancelled.length} Fahrt{e.cancelled.length === 1 ? " fällt" : "en fallen"} aus
+                          </span>
+                          {first && (
+                            <span className="text-gray-500">
+                              {" "}– z. B. {formatTime(first.when)} Richtung {shortStopName(first.direction)} ab {shortStopName(first.stop)}
+                            </span>
+                          )}
+                        </p>
+                      )}
+                      {e.messages.slice(0, 2).map((m, i) => (
+                        <p key={i} className="text-gray-300">{m.length > 180 ? `${m.slice(0, 177)}…` : m}</p>
+                      ))}
+                      {e.maxDelay > 0 && (
+                        <p className="text-yellow-300">Verspätungen bis +{Math.round(e.maxDelay / 60)} min</p>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {items && items.length > 6 && (
+            <button type="button" onClick={() => setShowAll((s) => !s)} className="mt-3 text-xs text-[#60a5fa] hover:text-white">
+              {showAll ? "Weniger anzeigen" : `Alle ${items.length} Linien anzeigen`}
+            </button>
+          )}
+
+          {updatedAt && (
+            <p className="mt-3 text-xs text-gray-500">
+              Stand {new Date(updatedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} ·
+              aktualisiert alle 2 Minuten
+            </p>
+          )}
+        </section>
+      );
+    }
+
+    /* =====================================================================
+       Die Seite
+       ===================================================================== */
+
+    // Ist der Bildschirm breit (Tablet/Computer)? Unter 640 px gilt die Handy-Ansicht mit Tabs.
+    function useIsDesktop() {
+      const query = "(min-width: 640px)";
+      const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+      useEffect(() => {
+        const mq = window.matchMedia(query);
+        const onChange = () => setMatches(mq.matches);
+        mq.addEventListener("change", onChange);
+        return () => mq.removeEventListener("change", onChange);
+      }, []);
+      return matches;
+    }
+
+    const TAB_ICONS = {
+      compare: <path d="M7 7h11l-3-3M17 17H6l3 3" />,
+      trip: <><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z" /><path d="M9 4v14M15 6v14" /></>,
+      disruptions: <><path d="M12 3 2 20h20L12 3Z" /><path d="M12 10v4M12 17h.01" /></>,
+      reports: <><path d="M4 10v4h3l6 4V6L7 10H4Z" /><path d="M17 9a4 4 0 0 1 0 6" /></>,
+    };
+
+    // Leiste unten auf dem Handy – wie bei einer echten App.
+    function MobileTabBar({ tab, onChange, hasTrip, disruptionCount }) {
+      const tabs = [
+        { id: "compare", label: "Vergleich" },
+        { id: "trip", label: "Losgehen", dot: hasTrip },
+        { id: "disruptions", label: "Störungen", badge: disruptionCount },
+        { id: "reports", label: "Melden" },
+      ];
+      return (
+        <nav aria-label="Bereiche"
+          className="sm:hidden fixed inset-x-0 bottom-0 z-[1100] bg-black/95 backdrop-blur border-t border-white/10"
+          style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+          <div className="grid grid-cols-4 max-w-md mx-auto">
+            {tabs.map((t) => {
+              const active = tab === t.id;
+              return (
+                <button key={t.id} type="button" onClick={() => onChange(t.id)} aria-current={active ? "page" : undefined}
+                  className={`relative flex flex-col items-center gap-1 pt-2.5 pb-2 text-[11px] font-medium transition ${
+                    active ? "text-[#7CFC8A]" : "text-gray-400 active:text-white"
+                  }`}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    {TAB_ICONS[t.id]}
+                  </svg>
+                  {t.label}
+                  {t.badge > 0 && (
+                    <span className="absolute top-1.5 left-1/2 ml-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] leading-[18px] text-center">
+                      {t.badge}
+                    </span>
+                  )}
+                  {t.dot && !active && (
+                    <span className="absolute top-2 left-1/2 ml-2.5 w-2 h-2 rounded-full bg-[#7CFC8A]" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      );
+    }
+
+    function ComparePage() {
+      const [reports, setReports] = useState([]);
+      const [trip, setTrip] = useState(null); // { journey, from, to } der letzten ÖPNV-Verbindung
+      const [refreshing, setRefreshing] = useState(false);
+      const [refreshError, setRefreshError] = useState(false);
+      const [tab, setTab] = useState("compare");
+      const [disruptionCount, setDisruptionCount] = useState(0);
+      const isDesktop = useIsDesktop();
+
+      // Auf dem Handy nur den gewählten Bereich zeigen, am Computer alles untereinander.
+      const show = (id) => (tab === id ? "" : "hidden sm:block");
+
+      function changeTab(id) {
+        setTab(id);
+        window.scrollTo({ top: 0 });
+      }
+
+      async function refreshTrip() {
+        if (!trip) return;
+        setRefreshing(true);
+        setRefreshError(false);
+        try {
+          const journey = await fetchJourney(trip.from, trip.to);
+          if (journey) setTrip({ ...trip, journey });
+          else setRefreshError(true);
+        } catch {
+          setRefreshError(true);
+        } finally {
+          setRefreshing(false);
+        }
+      }
+
+      function addReport(report) {
+        setReports((prev) => [
+          { ...report, id: `r-${Date.now()}`, createdAt: new Date().toISOString() },
+          ...prev,
+        ]);
+      }
+
+      return (
+        <div className="px-4 pt-5 pb-28 sm:py-12 min-h-screen bg-black">
+          <div className="max-w-2xl mx-auto">
+            <header className={`mb-4 sm:mb-6 ${tab === "compare" ? "" : "hidden sm:block"}`}>
+              <GoNowLogo />
+              <h1 className="text-xl sm:text-3xl font-bold text-white">ÖPNV vs. Auto — Berlin</h1>
+              <p className="text-gray-300 mt-1 text-sm">
+                Echte BVG-Verbindungen im Vergleich mit Auto, Fahrrad und Fußweg für deine tägliche Strecke.
+              </p>
+            </header>
+            {/* Auf den anderen Tabs nur ein schmaler Kopf */}
+            <div className={`sm:hidden mb-4 ${tab === "compare" ? "hidden" : ""}`}>
+              <GoNowLogo compact />
+            </div>
+
+            <div className={show("compare")}>
+              <div className="bg-[#0d0d0d] rounded-xl p-4 sm:p-6 border border-white/10">
+                <CompareTripForm
+                  onResult={(r) => { setTrip(r); setRefreshError(false); }}
+                  onShowTrip={() => changeTab("trip")}
+                />
+              </div>
+
+              <details className="mt-4 sm:mt-6 text-xs text-gray-400 group">
+                <summary className="cursor-pointer list-none text-center select-none hover:text-gray-200">
+                  ÖPNV live von der BVG · Auto, Rad und Fuß per Routenplaner ·{" "}
+                  <span className="underline">So rechnen wir</span>
+                </summary>
+                <p className="mt-2 text-center leading-relaxed">
+                  Preise nach VBB-Tarif 2026 (AB {formatEuro(FARES.AB)}, Kurzstrecke {formatEuro(FARES.kurzstrecke)},
+                  ABC {formatEuro(FARES.ABC)}, Deutschlandticket {formatEuro(FARES.deutschlandticketMonth)}/Monat).
+                  Routen für Auto, Fahrrad und Fußweg vom OpenStreetMap-Routenplaner; beim Auto mit Zuschlag für
+                  Berliner Verkehr und Parkplatzsuche. Autokosten: nur Sprit ({formatEuro(CAR.fuelPricePerLiter)}/l,{" "}
+                  {CAR.fuelLitersPer100Km} l/100 km) und Parken.
+                </p>
+              </details>
+            </div>
+
+            {trip ? (
+              <div className={show("trip")}>
+                <LiveTripSection
+                  journey={trip.journey}
+                  onRefresh={refreshTrip}
+                  refreshing={refreshing}
+                  refreshError={refreshError}
+                  visible={isDesktop || tab === "trip"}
+                />
+              </div>
+            ) : (
+              tab === "trip" && (
+                <div className="sm:hidden bg-[#0d0d0d] rounded-xl p-6 border border-white/10 text-center">
+                  <p className="text-white font-semibold">Noch keine Verbindung</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Vergleiche zuerst eine Strecke. Dann siehst du hier, wann du los musst und wo deine Bahn gerade ist.
+                  </p>
+                  <button type="button" onClick={() => changeTab("compare")}
+                    className="mt-4 px-4 py-2.5 bg-[#2563EB] text-white rounded-lg text-sm font-medium">
+                    Zum Vergleich
+                  </button>
+                </div>
+              )
+            )}
+
+            <div className={show("disruptions")}>
+              <LiveDisruptions onCount={setDisruptionCount} />
+            </div>
+
+            <div className={show("reports")}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:mt-4">
+                <ReportForm onSubmit={addReport} />
+                <ReportList reports={reports} />
+              </div>
+              <p className="mt-3 text-xs text-gray-400 text-center">
+                Meldungen sind nur in dieser Sitzung sichtbar und gehen beim Neuladen verloren.
+              </p>
+            </div>
+          </div>
+
+          <MobileTabBar tab={tab} onChange={changeTab} hasTrip={!!trip} disruptionCount={disruptionCount} />
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<ComparePage />);
+  </script>
+</body>
+</html>
