@@ -646,7 +646,24 @@
       express: "🚄", ferry: "⛴️", walking: "🚶",
     };
 
-    function CompareResult({ journey, transitFailed, selfEstimates, dticket, onShowTrip }) {
+    // Route in Apple Karten / Google Maps öffnen (Start und Ziel als Koordinaten).
+    // Apple: d = Auto, w = zu Fuß, c = Fahrrad (Fahrrad ab neueren iOS-Versionen; sonst zeigt Apple eine andere Art an).
+    const MAPS_MODE = {
+      car: { apple: "d", google: "driving" },
+      bike: { apple: "c", google: "bicycling" },
+      walk: { apple: "w", google: "walking" },
+    };
+    function mapsLinks(from, to, mode = "car") {
+      const a = `${from.latitude},${from.longitude}`;
+      const b = `${to.latitude},${to.longitude}`;
+      const m = MAPS_MODE[mode] ?? MAPS_MODE.car;
+      return {
+        apple: `https://maps.apple.com/?saddr=${a}&daddr=${b}&dirflg=${m.apple}`,
+        google: `https://www.google.com/maps/dir/?api=1&origin=${a}&destination=${b}&travelmode=${m.google}`,
+      };
+    }
+
+    function CompareResult({ journey, transitFailed, selfEstimates, dticket, onShowTrip, from, to }) {
       const breakEven = journey ? deutschlandticketBreakEven(journey.priceEuro) : null;
       const cards = [];
 
@@ -717,6 +734,18 @@
               {est.details.map((d, i) => (
                 <p key={i} className="text-xs text-gray-500 mt-1">{d}</p>
               ))}
+              {from && to && (
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  <a href={mapsLinks(from, to, est.mode).apple} target="_blank" rel="noopener noreferrer"
+                    className="text-center px-3 py-2.5 rounded-lg text-sm font-medium border border-white/20 text-gray-100 hover:border-white/40 active:bg-white/10">
+                    Apple Karten ↗
+                  </a>
+                  <a href={mapsLinks(from, to, est.mode).google} target="_blank" rel="noopener noreferrer"
+                    className="text-center px-3 py-2.5 rounded-lg text-sm font-medium border border-white/20 text-gray-100 hover:border-white/40 active:bg-white/10">
+                    Google Maps ↗
+                  </a>
+                </div>
+              )}
             </>
           ),
         });
@@ -810,7 +839,7 @@
         const transitFailed = !!journeyResult.failed;
         if (transitFailed) setError(ERROR_TEXT);
         // Alternativen werden immer angezeigt – auch wenn die BVG streikt.
-        setResult({ journey, transitFailed, selfEstimates });
+        setResult({ journey, transitFailed, selfEstimates, from, to });
         onResult?.(journey ? { journey, from, to } : null);
         setComparisons((n) => n + 1);
         setLoading(false);
