@@ -17,8 +17,10 @@ Wer in Berlin pendelt, fragt sich oft: *Lohnt sich heute das Auto, oder bin ich 
 ## Was GoNow kann
 
 - **Ortssuche mit Live-Vorschlägen** für Haltestellen und Adressen, bedienbar per Tastatur – oder mit einem Tipp auf „Mein Standort“
+- **150 bekannte Berliner Hotels** direkt in der Suche (z. B. „Adlon“, „Hilton“, „Motel One Alex“) – praktisch für Taxifahrten ab oder zum Hotel
 - **Echte ÖPNV-Verbindung** von der BVG mit Abfahrt, Ankunft, Umstiegen und Linien; ausgefallene Verbindungen werden automatisch übersprungen
-- **Echte Routen für Auto, Fahrrad und Fußweg** über den OpenStreetMap-Routenplaner
+- **Echte Routen für Auto, Taxi, Fahrrad und Fußweg** über den OpenStreetMap-Routenplaner, mit Knöpfen zum Öffnen in Apple Karten oder Google Maps
+- **Taxipreis nach Berliner Taxitarif**, mit Aufschlüsselung nach Grundpreis und Kilometerstufen
 - **Kostenvergleich** mit dem richtigen VBB-Fahrschein, Spritkosten und Parkgebühren
 - **Deutschlandticket-Schalter** inkl. Hinweis, ab wie vielen Fahrten im Monat es sich lohnt
 - **„Wenn du jetzt losgehst“**: Countdown, Linie, Gleis, Verspätung und eine Karte mit der **Live-Position der Bahn** (alle 15 Sekunden aktualisiert)
@@ -34,6 +36,7 @@ Wer in Berlin pendelt, fragt sich oft: *Lohnt sich heute das Auto, oder bin ich 
 | **Deutschlandticket** | 63 €/Monat → Einzelfahrt kostet 0 € extra; „lohnt sich ab“ = 63 € ÷ Einzelpreis |
 | **Auto – Zeit** | Routenplaner-Fahrzeit × 1,35 (Berliner Verkehr) + Parkplatzsuche (10 min innerhalb des S-Bahn-Rings, sonst 4 min) + 2 min Fußweg |
 | **Auto – Kosten** | Sprit (7 l/100 km × 1,75 €/l) + Parken 3 €/h, wenn das Ziel innerhalb des S-Bahn-Rings liegt; Parkdauer wählbar |
+| **Taxi** | Berliner Taxitarif (seit Juni 2024): Grundpreis 4,30 € + 2,80 €/km (1.–3. km) + 2,60 €/km (4.–7. km) + 2,10 €/km (ab 8. km), auf 10 Cent gerundet; Fahrzeit wie Auto, aber ohne Parkplatzsuche; Wartezeit im Stau (39 €/h) nicht eingerechnet |
 | **Fahrrad & Fußweg** | Dauer und Strecke direkt vom Routenplaner, kostenlos |
 
 Ob ein Ziel im S-Bahn-Ring liegt, prüft GoNow geometrisch anhand der Ringbahn-Bahnhöfe; ob eine Haltestelle in Berlin liegt (Tarifbereich AB vs. C), am Haltestellennamen und an den Koordinaten.
@@ -45,6 +48,7 @@ Ob ein Ziel im S-Bahn-Ring liegt, prüft GoNow geometrisch anhand der Ringbahn-B
 | Haltestellen, Verbindungen, Zugpositionen, Störungen | BVG über die offene Schnittstelle [v6.bvg.transport.rest](https://v6.bvg.transport.rest/) |
 | Routen für Auto, Fahrrad, Fußweg | [routing.openstreetmap.de](https://routing.openstreetmap.de/) (FOSSGIS e. V.) |
 | Karte | © [OpenStreetMap](https://www.openstreetmap.org/copyright)-Mitwirkende |
+| Hotelliste (150 Hotels) | OpenStreetMap, ausgewählt nach Wikipedia-/Wikidata-Eintrag, Sternen, Zimmerzahl und Hotelkette; zwei Hotels über die BVG-Ortssuche ergänzt |
 | Fahrpreise | [VBB-Tarif ab 1. Januar 2026](https://www.vbb.de/news/neue-fahrpreise-im-vbb-ab-1-januar-2026/) |
 | Nutzer-Meldungen (gemeinsam für alle Geräte) | [ntfy.sh](https://ntfy.sh/) – kostenloser Nachrichtendienst, kein Konto nötig |
 

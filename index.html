@@ -83,6 +83,49 @@
        BVG: Orte suchen
        ===================================================================== */
 
+    /* =====================================================================
+       Die 150 bekanntesten Hotels in Berlin (für Taxi-Fahrten ab/zum Hotel)
+       Quelle: OpenStreetMap (© OpenStreetMap-Mitwirkende, ODbL), ausgewählt
+       nach Wikipedia-/Wikidata-Eintrag, Sternen, Zimmerzahl und Hotelkette;
+       Sofitel Gendarmenmarkt und Hotel Amano über die BVG-Ortssuche ergänzt.
+       Format: [Name, Breitengrad, Längengrad, Adresse]
+       ===================================================================== */
+    const BERLIN_HOTELS = [["25hours Hotel Bikini Berlin",52.505632,13.337899,"Budapester Straße 40"],["A&O Berlin Friedrichshain",52.507005,13.46895,"Boxhagener Straße 73"],["A&O Berlin Kolumbus",52.539206,13.498137,"Genslerstraße 18"],["Abacus Tierpark Hotel",52.500437,13.520452,"Franz-Mett-Straße 3-9"],["abba Berlin hotel",52.499716,13.322033,"Lietzenburger Straße 89"],["Adina Apartment Hotel Berlin Checkpoint Charlie",52.509755,13.397583,"Krausenstraße 35-36"],["Adlon Kempinski",52.515576,13.380334,"Unter den Linden 77"],["Alexander Plaza",52.521599,13.404146,"Rosenstraße 1"],["Amano Grand Central",52.527236,13.370394,"Heidestraße 62"],["Ameron Hotel Abion Spreebogen Berlin",52.523137,13.346087,"Alt-Moabit 99"],["Arcotel John F Berlin",52.515182,13.397708,"Werderscher Markt 11"],["Arte Luise Kunsthotel",52.521685,13.379545,"Luisenstraße 19"],["art’otel Berlin Mitte",52.512544,13.410335,"Wallstraße 70-73"],["Aspria Spa + Sporting Club + Hotel",52.500557,13.294305,"Karlsruher Straße 20"],["Axel Hotel",52.499704,13.342021,"Lietzenburger Straße 15-18"],["Azimut Hotel Berlin Kurfürstendamm",52.504671,13.331954,"Joachimsthaler Straße 39-40"],["Berlin Marriott Hotel",52.511098,13.376072,"Inge-Beisheim-Platz 1"],["Best Western Hotel Kantstraße Berlin",52.506579,13.305907,"Kantstraße 111"],["Capri by Fraser Hotel",52.513948,13.40501,"Scharrenstraße 22"],["Catalonia Berlin-Mitte",52.511476,13.415777,"Köpenicker Straße 80-82"],["Central Inn",52.523177,13.358576,"Alt-Moabit 126"],["Cortina",52.50583,13.318996,"Kantstraße 140"],["Cosmo",52.511711,13.401321,"Spittelmarkt 13"],["Crowne Plaza Berlin City Centre",52.503906,13.340725,"Nürnberger Straße 65"],["Die Botschaft",52.484067,13.525777,"Treskowallee 92"],["Dorint Kurfürstendamm",52.502505,13.331793,"Augsburger Straße 41"],["Dormero Berlin Ku'damm",52.500407,13.33406,"Eislebener Straße 14"],["Eastern Comfort",52.502909,13.444335,"Mühlenstraße 73"],["Estrel Berlin",52.473627,13.45885,"Sonnenallee 225"],["Eurostars Berlin",52.520389,13.38925,"Friedrichstraße 99"],["Garner Hotel Berlin - Gendarmenmarkt by IHG",52.510612,13.391589,"Charlottenstraße 66"],["Garner Hotel Berlin - Spandau by IHG",52.532583,13.210087,"Freiheit 5"],["Gat Point Charlie",52.508838,13.388179,"Mauerstraße 81-82"],["Good Morning+ Berlin City East",52.521814,13.485168,"Ruschestraße 45"],["Goodman's Living",52.512185,13.304899,"Wilmersdorfer Straße 36"],["Grand Hyatt Berlin",52.508197,13.372484,"Marlene-Dietrich-Platz 2"],["H+ Hotel Berlin Mitte",52.529627,13.383747,"Chausseestraße 118"],["Hampton by Hilton Berlin City Centre Alexanderplatz",52.524794,13.418803,"Otto-Braun-Straße 69"],["Hampton by Hilton Berlin City West",52.504959,13.326185,"Uhlandstraße 188-189"],["Hilton Berlin",52.512103,13.392539,"Anton-Wilhelm-Amo-Straße 30"],["Holiday Inn Berlin - City East Side",52.504849,13.444605,"Wanda-Kallenbach-Straße 2"],["Holiday Inn Berlin City-West",52.540479,13.26202,"Rohrdamm 80"],["Holiday Inn Express Alexanderplatz",52.515666,13.411872,"Stralauer Straße 45"],["Hollywood Media Hotel",52.501636,13.321285,"Kurfürstendamm 202"],["Hotel \"Alte Feuerwache\"",52.545909,13.494201,"Waldowstraße 1"],["Hotel am Borsigturm",52.583463,13.287203,"Am Borsigturm 1"],["Hotel Amano",52.52825,13.402854,"Auguststraße 43"],["Hotel Aquino",52.527109,13.384738,"Hannoversche Straße 5b"],["Hotel Benn",52.538268,13.204003,"Ritterstraße 1a"],["Hotel Berlin Alexanderplatz by Leonardo Hotels",52.525561,13.414651,"Karl-Liebknecht-Straße 32b"],["Hotel Berlin Potsdamer Platz",52.501579,13.38313,"Hallesche Straße 10"],["Hotel Berlin, Berlin",52.503655,13.351722,"Lützowplatz 17"],["Hotel Bristol Berlin",52.503725,13.327094,"Kurfürstendamm 27"],["Hotel Casa Camper Berlin",52.525786,13.404064,"Weinmeisterstraße 1"],["Hotel de Rome",52.515791,13.394067,"Behrenstraße 37"],["Hotel Indigo Berlin Ku'damm",52.507873,13.327887,"Hardenbergstraße 15"],["Hotel Landhaus Alpinia",52.421103,13.39197,"Säntisstraße 32"],["Hotel Landhaus Schlachtensee",52.43933,13.229491,"Bogotastraße 9"],["Hotel Ludwig van Beethoven",52.487652,13.420873,"Hasenheide 14"],["Hotel MANI by AMANO",52.52929,13.39965,"Torstraße 136"],["Hotel Nova",52.50935,13.498059,"Weitlingstraße 15"],["Hotel Oderberger",52.537982,13.410583,"Oderberger Straße 57-59"],["Hotel Pullman Berlin Schweizerhof",52.505938,13.344099,"Budapester Straße 25"],["Hotel Riu Plaza Berlin",52.500392,13.34688,"Martin-Luther-Straße 1"],["Hotel Schulz",52.508602,13.433938,"Stralauer Platz 36"],["Hotel Steglitz International",52.456263,13.321236,"Albrechtstraße 2"],["Hotel Zoo",52.50356,13.329008,"Kurfürstendamm 25"],["hotelhellemitte",52.537679,13.603442,"Kurt-Weill-Gasse 7"],["ibis budget Berlin Alexanderplatz",52.525215,13.421234,"Mollstraße 30"],["INNSiDE Berlin Mitte",52.533015,13.380768,"Chausseestraße 33"],["IntercityHotel Berlin Hauptbahnhof",52.523639,13.366711,"Katharina-Paulus-Straße 5"],["InterContinental Berlin",52.507255,13.345411,"Budapester Straße 2"],["iStay by NH Berlin CIty Ost",52.513603,13.481994,"Rathausstraße 2-3"],["Kastanienhof",52.534749,13.406141,"Kastanienallee 65"],["Leonardo Berlin Mitte",52.522658,13.386583,"Bertolt-Brecht-Platz 4"],["Leonardo Hotel",52.437269,13.46307,"Rudower Straße 80"],["Leonardo Royal Hotel Berlin Alexanderplatz",52.527333,13.423408,"Otto-Braun-Straße 90"],["Leonardo Smart Hotel Berlin Alexanderplatz",52.525315,13.414371,"Karl-Liebknecht-Straße 32a"],["Lindner Hotel Berlin Am Ku'damm",52.503909,13.329382,"Kurfürstendamm 24"],["Linnen",52.541508,13.40901,"Eberswalder Straße 35"],["Living Hotel Berlin-Mitte",52.512082,13.40825,"Neue Roßstraße 13"],["Living Hotel Großer Kurfürst",52.512249,13.408788,"Neue Roßstraße 11-12"],["Loginn Hotel Berlin Airport",52.398547,13.5412,"Schützenstraße 33"],["Louisas Place",52.499361,13.305118,"Kurfürstendamm 160"],["Lulu Guldsmeden",52.503404,13.366257,"Potsdamer Straße 67"],["Maritim proArte Hotel Berlin",52.518228,13.3875,"Friedrichstraße 151"],["Me and All Hotel Berlin East Side",52.509987,13.429572,"An der Schillingbrücke 2"],["Meininger",52.532866,13.413078,"Schönhauser Allee 19"],["Meininger Berlin Airport",52.396713,13.540483,"Alexander-Meißner-Straße 1"],["Meininger Hotel Berlin Tiergarten",52.52645,13.344341,"Turmstraße 25"],["Meliá Berlin",52.521343,13.388468,"Friedrichstraße 103"],["Mercure Berlin Wittenbergplatz",52.500964,13.342478,"Wittenbergplatz 3"],["Mercure Hotel + Residenz Berlin Checkpoint Charlie",52.508592,13.393424,"Schützenstraße 11"],["Mercure Hotel Berlin City",52.530575,13.381474,"Invalidenstraße 38"],["Mercure Hotel Berlin City West",52.53571,13.273029,"Ohmstraße 4-6"],["Mercure Hotel Berlin Tempelhof",52.478535,13.426545,"Hermannstraße 214-216"],["Michelberger Hotel",52.504618,13.447962,"Warschauer Straße 39-40"],["Motel One Berlin-Alexanderplatz",52.519782,13.41247,"Grunerstraße 11"],["Motel One Berlin-Bellevue",52.520056,13.35626,"Paulstraße 21"],["Motel One Berlin-Hauptbahnhof",52.525761,13.36573,"Invalidenstraße 54"],["Motel One Berlin-Ku'Damm",52.505602,13.329576,"Kantstraße 10"],["Motel One Berlin-Spittelmarkt",52.510698,13.400859,"Leipziger Straße 50"],["Moxy Berlin Ostbahnhof",52.511045,13.429953,"Andreasstraße 76-78"],["Myer's Hotel",52.531319,13.417914,"Metzer Straße 26"],["Müggelseeperle",52.426037,13.641048,"Müggelheimer Damm 145"],["New Berlin",52.524346,13.448424,"Petersburger Straße 24"],["NH Berlin Alexanderplatz",52.522941,13.436771,"Landsberger Allee 26"],["NH Berlin Potsdamer Platz",52.501594,13.385617,"Stresemannstraße 47"],["NH Collection",52.519576,13.388896,"Friedrichstraße 96"],["NH Collection Berlin Mitte am Checkpoint Charlie",52.51053,13.388985,"Leipziger Straße 106-111"],["nhow Berlin",52.501095,13.450848,"Stralauer Allee 3"],["Novotel Berlin Mitte",52.513167,13.405193,"Fischerinsel 12"],["Novotel Suites Berlin City Potsdamer Platz",52.504586,13.383343,"Anhalter Straße 2"],["Novum Hotel Kronprinz Berlin",52.497318,13.286901,"Kronprinzendamm 1"],["Orania",52.502057,13.41699,"Oranienstraße 40"],["Palace Berlin",52.50492,13.338849,"Budapester Straße 45"],["Park Inn by Radisson Berlin-Alexanderplatz",52.522845,13.412788,"Alexanderplatz 7"],["Park Plaza Wallstreet",52.511465,13.407803,"Wallstraße 23"],["Pestana Berlin Tiergarten",52.508418,13.348565,"Stülerstraße 6"],["PLAZA Premium Berlin Kurfürstendamm",52.501841,13.322644,"Kurfürstendamm 203-205"],["Provocateur",52.495743,13.308769,"Brandenburgische Straße 21"],["Quentin Berlin am Kurfürstendamm",52.498871,13.309057,"Xantener Straße 4"],["Radisson Collection Hotel Berlin",52.519517,13.40283,"Karl-Liebknecht-Straße 3"],["relexa hotel Stuttgarter Hof Berlin",52.50493,13.385193,"Anhalter Straße 8-9"],["Ringhotel Seehof Berlin",52.507149,13.288855,"Lietzensee-Ufer 11"],["Roomers Berlin",52.508089,13.326374,"Steinplatz 4"],["Scandic Berlin Kurfürstendamm",52.500062,13.3382,"Augsburger Straße 5"],["Scandic Berlin Potsdamer Platz",52.504686,13.375245,""],["Schlosshotel im Grunewald",52.480393,13.274351,"Brahmsstraße 10"],["Seminaris CampusHotel Berlin",52.456957,13.293477,"Takustraße 39"],["Sheraton Berlin Grand Hotel Esplanade",52.505584,13.354852,"Lützowufer 15"],["SO/ Berlin Das Stue",52.509873,13.345964,"Drakestraße 1"],["Sofitel Berlin Gendarmenmarkt",52.514461,13.390952,"Charlottenstraße 50-52"],["Soho House Berlin",52.527768,13.415656,"Torstraße 1"],["Spreeidyll",52.448574,13.608816,"Müggelseedamm 70"],["Steigenberger Hotel Am Kanzleramt",52.523642,13.367727,"Ella-Trebe-Straße 5"],["Telegraphenamt",52.523981,13.394507,"Monbijoustraße 11"],["The Circus Hotel",52.529384,13.401258,"Rosenthaler Straße 1"],["THE GATE GARDEN HOTEL",52.531154,13.386156,"Invalidenstraße 122"],["The Mandala Hotel",52.508938,13.373866,"Potsdamer Straße 3"],["The Ritz-Carlton",52.510409,13.375226,"Potsdamer Platz 3"],["The Social Hub",52.5168,13.417487,"Alexanderstraße 40"],["The Westin Grand Berlin",52.515877,13.388604,"Friedrichstraße 158-164"],["The Yard",52.499051,13.399848,"Alexandrinenstraße 125"],["Titanic Chaussee Berlin",52.532494,13.381776,"Chausseestraße 30"],["Titanic Gendarmenmarkt Berlin",52.514904,13.394675,"Französische Straße 30"],["Victor's Residenz-Hotel Berlin Mitte",52.528862,13.428805,"Am Friedrichshain 17"],["Waldhotel am See Berlin-Schmöckwitz",52.36898,13.651133,"Schmöckwitzer Damm 1G"],["Waldorf Astoria Berlin",52.505584,13.332911,"Hardenbergstraße 28"],["Wyndham Garden Berlin Mitte",52.555002,13.387041,"Osloer Straße 116A"]];
+
+    // Für die Suche: klein schreiben, Akzente und Sonderzeichen entfernen ("Hôtel" → "hotel").
+    function normalizeSearch(text) {
+      return String(text).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, " ").trim();
+    }
+    const HOTEL_INDEX = BERLIN_HOTELS.map(([name, latitude, longitude, street], i) => ({
+      id: `hotel-${i}`,
+      name,
+      street,
+      latitude,
+      longitude,
+      type: "hotel",
+      // An die BVG geht Name + Adresse, damit die Verbindung am richtigen Ort startet.
+      addressName: street ? `${name}, ${street}` : name,
+      search: normalizeSearch(`${name} ${street}`),
+    }));
+
+    // Hotels, deren Name/Adresse alle eingegebenen Wörter enthält ("hilton mitte", "adlon").
+    function searchHotels(query, max = 3) {
+      const words = normalizeSearch(query).split(" ").filter((w) => w && w !== "hotel" && w !== "berlin");
+      if (words.length === 0 || words.join("").length < 2) return [];
+      const q = words.join(" ");
+      // Beste Treffer zuerst: Name beginnt mit der Eingabe → ein Wort im Namen beginnt damit → Rest; dann kürzere Namen.
+      const rank = (h) => {
+        const n = normalizeSearch(h.name);
+        if (n.startsWith(q)) return 0;
+        if ((" " + n).includes(" " + q)) return 1;
+        return 2;
+      };
+      return HOTEL_INDEX.filter((h) => words.every((w) => h.search.includes(w)))
+        .sort((a, b) => rank(a) - rank(b) || a.name.length - b.name.length)
+        .slice(0, max);
+    }
+
     async function searchLocations(query, signal) {
       const q = query.trim();
       if (q.length < 2) return [];
@@ -155,6 +198,9 @@
     // Ist ein Ort in Berlin? Erst am Namen erkennen ("... (Berlin)", "..., Berlin-Mitte"), sonst an den Koordinaten.
     function isInBerlin(name = "", coord) {
       const clean = name.replace(/\s*\[[^\]]*\]\s*$/, "");
+      // Flughafen BER liegt in Schönefeld (Tarifbereich C), heißt bei der BVG aber nur "Flughafen BER".
+      if (/flughafen ber|\bBER\b/i.test(clean)) return false;
+      if (coord && coord[0] < 52.39 && coord[1] > 13.45 && coord[1] < 13.6) return false;
       const suffix = clean.match(/\(([^)]+)\)\s*$/);
       if (suffix) return suffix[1] === "Berlin";
       if (/,\s*Berlin\b/.test(clean) || /^(S\+U |S |U )?Berlin\b/.test(clean)) return true;
@@ -325,9 +371,37 @@
        OpenStreetMap-Routenplaner (routing.openstreetmap.de)
        ===================================================================== */
 
-    const SELF_MODES = ["car", "bike", "walk"];
-    const SELF_MODE_LABEL = { car: "🚗 Auto", bike: "🚲 Fahrrad", walk: "🚶 Zu Fuß" };
-    const ROUTER_PROFILE = { car: "routed-car", bike: "routed-bike", walk: "routed-foot" };
+    const SELF_MODES = ["car", "taxi", "bike", "walk"];
+    const SELF_MODE_LABEL = { car: "🚗 Auto", taxi: "🚕 Taxi", bike: "🚲 Fahrrad", walk: "🚶 Zu Fuß" };
+    const ROUTER_PROFILE = { car: "routed-car", taxi: "routed-car", bike: "routed-bike", walk: "routed-foot" };
+
+    // Berliner Taxitarif (Taxentarifverordnung, gültig seit Juni 2024).
+    // Quelle: berlin.de – bei einer Tarifänderung nur hier anpassen.
+    const TAXI = {
+      basePrice: 4.3,
+      tiers: [
+        { upToKm: 3, perKm: 2.8 },        // 1. bis 3. Kilometer
+        { upToKm: 7, perKm: 2.6 },        // 4. bis 7. Kilometer
+        { upToKm: Infinity, perKm: 2.1 }, // ab dem 8. Kilometer
+      ],
+      waitingPerHour: 39,                 // Wartezeit/Stau – in der Schätzung nicht enthalten
+    };
+
+    // Fahrpreis nach Taxameter-Logik, auf 10 Cent gerundet.
+    function taxiFare(km) {
+      let fare = TAXI.basePrice;
+      let from = 0;
+      const parts = [];
+      for (const tier of TAXI.tiers) {
+        const kmInTier = Math.max(0, Math.min(km, tier.upToKm) - from);
+        if (kmInTier > 0) {
+          fare += kmInTier * tier.perKm;
+          parts.push(`${kmInTier.toLocaleString("de-DE", { maximumFractionDigits: 1 })} km × ${formatEuro(tier.perKm)}`);
+        }
+        from = tier.upToKm;
+      }
+      return { fare: Math.round(fare * 10) / 10, parts };
+    }
 
     // Annahmen fürs Auto – hier anpassen, wenn sich Preise ändern.
     const CAR = {
@@ -341,7 +415,7 @@
     };
 
     // Notlösung, falls der Routenplaner nicht antwortet: Luftlinie × Umweg mit typischem Tempo.
-    const FALLBACK_SPEED_KMH = { car: 24, bike: 15, walk: 4.8 };
+    const FALLBACK_SPEED_KMH = { car: 24, taxi: 24, bike: 15, walk: 4.8 };
 
     async function fetchRoute(mode, from, to) {
       const coords = `${from.longitude},${from.latitude};${to.longitude},${to.latitude}`;
@@ -367,6 +441,19 @@
       }
 
       const result = { mode, routed, distanceKm: Math.round(km * 10) / 10, costEuro: 0, details: [] };
+
+      if (mode === "taxi") {
+        // Gleiche Autoroute mit Berliner Verkehr – aber ohne Parkplatzsuche und Fußweg.
+        const drive = routed ? minutes * CAR.trafficFactor : minutes;
+        const { fare, parts } = taxiFare(km);
+        result.durationMinutes = Math.max(1, Math.round(drive));
+        result.costEuro = fare;
+        result.details = [
+          `Grundpreis ${formatEuro(TAXI.basePrice)} + ${parts.join(" + ")}`,
+          `ohne Wartezeit im Stau (${formatEuro(TAXI.waitingPerHour)}/h) und ohne Trinkgeld`,
+        ];
+        return result;
+      }
 
       if (mode === "car") {
         const inner = isInsideRing(to);
@@ -481,19 +568,33 @@
           setLoading(false);
           return;
         }
+        // Passende Hotels sofort zeigen (ohne Warten auf die BVG).
+        const hotels = searchHotels(query);
+        setSearchFailed(false);
+        if (hotels.length) {
+          setResults(hotels);
+          setHighlight(0);
+          setOpen(true);
+        }
         const controller = new AbortController();
         const timer = setTimeout(async () => {
           setLoading(true);
-          setSearchFailed(false);
           try {
             const locs = await searchLocations(query, controller.signal);
-            setResults(locs);
-            setHighlight(locs.length ? 0 : -1);
+            // Passt eine Haltestelle genau zur Eingabe ("Hauptbahnhof"), kommt sie vor die Hotels.
+            const q = normalizeSearch(query);
+            const exactStop = locs.find((l) => l.type === "stop" && normalizeSearch(l.name).includes(q));
+            const merged = (exactStop
+              ? [exactStop, ...hotels, ...locs.filter((l) => l !== exactStop)]
+              : [...hotels, ...locs]
+            ).slice(0, 8);
+            setResults(merged);
+            setHighlight(merged.length ? 0 : -1);
             setOpen(true);
           } catch (e) {
             if (e.name === "AbortError") return; // neuere Eingabe ist schon unterwegs
-            setResults([]);
-            setSearchFailed(true);
+            setResults(hotels); // Hotels gehen auch ohne BVG
+            setSearchFailed(hotels.length === 0);
             setOpen(true);
           } finally {
             if (!controller.signal.aborted) setLoading(false);
@@ -598,10 +699,20 @@
                         i === highlight ? "bg-[#7CFC8A]/10" : ""
                       }`}
                     >
-                      <span className="font-medium">{loc.name}</span>
-                      <span className="ml-2 text-xs text-gray-400">
-                        {loc.type === "stop" ? "Haltestelle" : "Adresse"}
-                      </span>
+                      {loc.type === "hotel" ? (
+                        <>
+                          <span className="font-medium">🏨 {loc.name}</span>
+                          <span className="ml-2 text-xs text-[#7CFC8A]">Hotel</span>
+                          {loc.street && <span className="block text-xs text-gray-400 mt-0.5">{loc.street}</span>}
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-medium">{loc.name}</span>
+                          <span className="ml-2 text-xs text-gray-400">
+                            {loc.type === "stop" ? "Haltestelle" : "Adresse"}
+                          </span>
+                        </>
+                      )}
                     </button>
                   </li>
                 ))
@@ -652,6 +763,7 @@
       car: { apple: "d", google: "driving" },
       bike: { apple: "c", google: "bicycling" },
       walk: { apple: "w", google: "walking" },
+      taxi: { apple: "d", google: "driving" },
     };
     function mapsLinks(from, to, mode = "car") {
       const a = `${from.latitude},${from.longitude}`;
@@ -848,7 +960,7 @@
       return (
         <div>
           <div className="flex flex-col sm:flex-row gap-4 items-start">
-            <LocationAutocomplete label="Start" placeholder="z. B. Alexanderplatz"
+            <LocationAutocomplete label="Start" placeholder="z. B. Alexanderplatz oder Hotel Adlon"
               value={from} onChange={setFrom} disabled={loading} allowMyLocation />
             <LocationAutocomplete label="Ziel" placeholder="z. B. Potsdamer Platz"
               value={to} onChange={setTo} disabled={loading} />
@@ -1774,7 +1886,9 @@
                   ABC {formatEuro(FARES.ABC)}, Deutschlandticket {formatEuro(FARES.deutschlandticketMonth)}/Monat).
                   Routen für Auto, Fahrrad und Fußweg vom OpenStreetMap-Routenplaner; beim Auto mit Zuschlag für
                   Berliner Verkehr und Parkplatzsuche. Autokosten: nur Sprit ({formatEuro(CAR.fuelPricePerLiter)}/l,{" "}
-                  {CAR.fuelLitersPer100Km} l/100 km) und Parken.
+                  {CAR.fuelLitersPer100Km} l/100 km) und Parken. Taxi nach Berliner Taxitarif: Grundpreis{" "}
+                  {formatEuro(TAXI.basePrice)}, je km {formatEuro(TAXI.tiers[0].perKm)} (bis 3 km),{" "}
+                  {formatEuro(TAXI.tiers[1].perKm)} (bis 7 km), danach {formatEuro(TAXI.tiers[2].perKm)}; ohne Wartezeit.
                 </p>
               </details>
             </div>
