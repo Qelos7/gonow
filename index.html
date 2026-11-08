@@ -10,14 +10,14 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black" />
   <meta name="apple-mobile-web-app-title" content="GoNow" />
   <title>GoNow – ÖPNV vs. Auto in Berlin</title>
-  <!-- Alle Programmteile liegen im eigenen Ordner "vendor" – es werden keine fremden Server (CDNs) angefragt.
+  <!-- Alle Programmteile liegen im selben Ordner wie diese Seite – es werden keine fremden Server (CDNs) angefragt.
        Tailwind 3.4.16 (Design), React 18.3.1 (Oberfläche), Babel 7.24.7 (JSX-Übersetzer), Leaflet 1.9.4 (Karte). -->
-  <script src="vendor/tailwind.js"></script>
-  <script src="vendor/react.production.min.js"></script>
-  <script src="vendor/react-dom.production.min.js"></script>
-  <script src="vendor/babel.min.js"></script>
-  <link rel="stylesheet" href="vendor/leaflet.css" />
-  <script src="vendor/leaflet.js"></script>
+  <script src="tailwind.js"></script>
+  <script src="react.production.min.js"></script>
+  <script src="react-dom.production.min.js"></script>
+  <script src="babel.min.js"></script>
+  <link rel="stylesheet" href="leaflet.css" />
+  <script src="leaflet.js"></script>
   <style>
     body { background: #000; color: #fff; }
     .leaflet-container { background: #e5e3df; font: inherit; }
