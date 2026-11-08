@@ -23,6 +23,7 @@ Wer in Berlin pendelt, fragt sich oft: *Lohnt sich heute das Auto, oder bin ich 
 - **Deutschlandticket-Schalter** inkl. Hinweis, ab wie vielen Fahrten im Monat es sich lohnt
 - **„Wenn du jetzt losgehst“**: Countdown, Linie, Gleis, Verspätung und eine Karte mit der **Live-Position der Bahn** (alle 15 Sekunden aktualisiert)
 - **Live-Störungen** bei S-Bahn, U-Bahn und Regionalzügen (Ausfälle, Teilausfälle, Verspätungen) sowie Warnhinweise zur eigenen Verbindung
+- **Meldungen von Nutzern** (Stau, Störung): für alle Geräte sichtbar, verschwinden nach 10 Minuten automatisch
 - **Handy-Ansicht wie eine App** mit Tab-Leiste; lässt sich auf den Home-Bildschirm legen
 
 ## So rechnet GoNow
@@ -45,8 +46,9 @@ Ob ein Ziel im S-Bahn-Ring liegt, prüft GoNow geometrisch anhand der Ringbahn-B
 | Routen für Auto, Fahrrad, Fußweg | [routing.openstreetmap.de](https://routing.openstreetmap.de/) (FOSSGIS e. V.) |
 | Karte | © [OpenStreetMap](https://www.openstreetmap.org/copyright)-Mitwirkende |
 | Fahrpreise | [VBB-Tarif ab 1. Januar 2026](https://www.vbb.de/news/neue-fahrpreise-im-vbb-ab-1-januar-2026/) |
+| Nutzer-Meldungen (gemeinsam für alle Geräte) | [ntfy.sh](https://ntfy.sh/) – kostenloser Nachrichtendienst, kein Konto nötig |
 
-GoNow speichert keine persönlichen Daten auf einem Server. Nur zwei Einstellungen (Deutschlandticket, Parkdauer) merkt sich der eigene Browser.
+Gespeichert werden nur die Meldungen, die Nutzer selbst abschicken (Spitzname, Ort, Art, optionale Details). Die App zeigt sie 10 Minuten lang an. Standort und Suchanfragen werden nirgends gespeichert. Einstellungen (Deutschlandticket, Parkdauer) merkt sich nur der eigene Browser.
 
 ## Technik
 
@@ -72,13 +74,14 @@ Wichtige Schritte vom Prototyp zur heutigen App:
 4. **Echte Störungsdaten** der BVG statt erfundener Beispielmeldungen
 5. **Handy-Ansicht** mit Tab-Leiste und Veröffentlichung über GitHub Pages
 6. **Zuverlässigkeit:** ausgefallene Verbindungen werden übersprungen
+7. **Gemeinsame Meldungen:** Meldungen eines Geräts erscheinen nach spätestens 20 Sekunden auf allen anderen
 
 ## Grenzen
 
 - Auto-Zeiten und -Kosten sind **Schätzungen** (Verkehrsaufschlag, Spritpreis, Parkgebühr sind Annahmen); Versicherung und Wertverlust sind nicht eingerechnet.
 - Die genutzten Dienste sind **kostenlose Gemeinschaftsangebote ohne Garantie** und nur für geringe Nutzung gedacht.
 - Die Störungsliste fragt **9 große Knotenbahnhöfe** ab, weil die Schnittstelle keine Gesamtliste anbietet; Störungen am Stadtrand und bei Bus/Tram können fehlen.
-- Nutzer-Meldungen sind nur in der eigenen Sitzung sichtbar (keine gemeinsame Datenbank).
+- Nutzer-Meldungen laufen über einen **öffentlichen Kanal** ohne Anmeldung und ohne Moderation. Wer den Kanalnamen aus dem Code kennt, könnte dort auch selbst Nachrichten einstellen.
 
 ## Ideen für später
 
@@ -87,7 +90,7 @@ Wichtige Schritte vom Prototyp zur heutigen App:
 · Lieblingsstrecken speichern 
 · mehrere Verbindungen zur Auswahl 
 · Wetter und CO₂ einbeziehen 
-· gemeinsame Datenbank für Meldungen 
+· eigene Datenbank für Meldungen mit Anmeldung und Moderation 
 · Umbau zu einem Projekt mit mehreren Dateien und automatischen Tests
 
 ## Selbst starten
