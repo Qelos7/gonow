@@ -52,12 +52,12 @@ Ob ein Ziel im S-Bahn-Ring liegt, prüft GoNow geometrisch anhand der Ringbahn-B
 | Fahrpreise | [VBB-Tarif ab 1. Januar 2026](https://www.vbb.de/news/neue-fahrpreise-im-vbb-ab-1-januar-2026/) |
 | Nutzer-Meldungen (gemeinsam für alle Geräte) | [ntfy.sh](https://ntfy.sh/) – kostenloser Nachrichtendienst, kein Konto nötig |
 
-**Datenschutz:** keine Cookies, kein Tracking, kein Nutzerkonto. Alle Programmteile liegen im eigenen Ordner `vendor/`, es werden keine fremden Programm-Server (CDNs) angefragt. Meldungen sind anonym und bestehen nur aus Werten fester Auswahllisten; die App zeigt sie 10 Minuten lang an. Vor der ersten Standortabfrage erklärt die App, wohin der Standort gesendet wird. Einstellungen merkt sich nur der eigene Browser. Details und Kontakt in der [Datenschutzerklärung](datenschutz.html). GoNow ist ein privates, nicht kommerzielles Projekt.
+**Datenschutz:** keine Cookies, kein Tracking, kein Nutzerkonto. Alle Programmteile (React, Leaflet, Tailwind, Babel) liegen im Projekt selbst, es werden keine fremden Programm-Server (CDNs) angefragt. Meldungen sind anonym und bestehen nur aus Werten fester Auswahllisten; die App zeigt sie 10 Minuten lang an. Vor der ersten Standortabfrage erklärt die App, wohin der Standort gesendet wird. Einstellungen merkt sich nur der eigene Browser. Details und Kontakt in der [Datenschutzerklärung](datenschutz.html). GoNow ist ein privates, nicht kommerzielles Projekt.
 
 ## Technik
 
 - **React 18** (Oberfläche), **Tailwind CSS** (Design), **Leaflet** (Karte)
-- Bewusst als **eine HTML-Datei plus Programmteile im Ordner `vendor/`** ohne Build-Schritt gebaut: läuft sofort im Browser, braucht keine Installation, lädt nichts von fremden Programm-Servern und lässt sich kostenlos über **GitHub Pages** veröffentlichen
+- Bewusst als **eine HTML-Datei plus die Programmteile als eigene Dateien im Projekt** ohne Build-Schritt gebaut: läuft sofort im Browser, braucht keine Installation, lädt nichts von fremden Programm-Servern und lässt sich kostenlos über **GitHub Pages** veröffentlichen
 - Live-Daten werden direkt im Browser abgefragt; mehrere Anfragen laufen parallel, veraltete Suchanfragen werden abgebrochen
 
 ## Entstehung & meine Rolle
